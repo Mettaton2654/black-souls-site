@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="profile-header">
+    <div class="profile-avatar-large">
+        <img src="{{ url_for('static', filename='uploads/' + user.avatar) }}" alt="avatar" onerror="this.src='https://via.placeholder.com/150/1a1a1a/b30000?text=?'">
+    </div>
+    <div class="profile-info">
+        <h1>{{ user.username }}</h1>
+        <p>Email: {{ user.email }}</p>
+        <p>Зарегистрирован: {{ user.id }}</p> {# можно заменить на поле date_registered, если добавите #}
+        <div class="profile-stats">
+            <span>Постов: {{ posts|length }}</span>
+            <span>Комментариев: {{ comments_count }}</span>
+        </div>
+        {% if user.is_admin %}
+            <span class="admin-badge">Администратор</span>
+        {% endif %}
+    </div>
+</div>
+
+<hr>
+
+<h2>Посты пользователя</h2>
+<div class="posts">
+    {% for post in posts %}
+        <div class="post-card">
+            <div class="post-header">
+                <img src="{{ url_for('static', filename='uploads/' + post.author.avatar) }}" alt="avatar" class="avatar" onerror="this.src='https://via.placeholder.com/50/1a1a1a/b30000?text=?'">
+                <span class="username">{{ post.author.username }}</span>
+                <span class="post-date">{{ post.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
+            </div>
+            <div class="post-content">
+                {{ post.content }}
+            </div>
+            {% if post.sticker %}
+                <div class="post-sticker">
+                    <img src="{{ url_for('static', filename='uploads/' + post.sticker.image_file) }}" alt="{{ post.sticker.name }}">
+                </div>
+            {% endif %}
+            {% if post.attachments %}
+                <div class="post-attachments">
+                    <strong>Вложения:</strong>
+                    <div class="attachment-grid">
+                    {% for att in post.attachments %}
+                        {% set ext = att.file_url.split('.')[-1].lower() %}
+                        {% if ext in ['jpg', 'jpeg', 'png', 'gif'] %}
+                            <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank">
+                                <img src="{{ url_for('static', filename='uploads/' + att.file_url) }}" alt="{{ att.filename }}" class="attachment-image">
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank" class="attachment-file">{{ att.filename }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+            <div class="post-comments-link">
+                <a href="{{ url_for('index', _anchor='post-' + post.id|string) }}">Перейти к посту ({{ post.comments|length }} комментариев)</a>
+            </div>
+        </div>
+    {% else %}
+        <p>У пользователя пока нет постов.</p>
+    {% endfor %}
+</div>
+{% endblock %}
