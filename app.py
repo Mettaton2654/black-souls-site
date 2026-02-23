@@ -25,7 +25,9 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-
+with app.app_context():
+    db.create_all()
+    print("Таблицы созданы (или уже существуют)")
 # Модели
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
