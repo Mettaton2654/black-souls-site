@@ -1,12 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>{% if post %}Редактирование поста{% else %}Новый пост{% endif %}</h1>
+<h1>Новый пост</h1>
 <form method="POST" enctype="multipart/form-data">
     {{ form.hidden_tag() }}
     <div class="form-group">
         {{ form.content.label }}<br>
         {{ form.content(class="form-control", rows=5) }}<br>
         {% for error in form.content.errors %}
+            <span class="error">[{{ error }}]</span>
+        {% endfor %}
+    </div>
+    <div class="form-group">
+        {{ form.sticker.label }}<br>
+        {{ form.sticker(class="form-control") }}<br>
+        {% for error in form.sticker.errors %}
             <span class="error">[{{ error }}]</span>
         {% endfor %}
     </div>
@@ -22,17 +29,4 @@
         {{ form.submit(class="btn btn-primary") }}
     </div>
 </form>
-{% if post and post.attachments %}
-    <h3>Существующие вложения</h3>
-    <ul>
-    {% for att in post.attachments %}
-        <li>
-            <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank">{{ att.filename }}</a>
-            <form method="POST" action="{{ url_for('delete_attachment', attachment_id=att.id) }}" style="display:inline;">
-                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить вложение?');">Удалить</button>
-            </form>
-        </li>
-    {% endfor %}
-    </ul>
-{% endif %}
 {% endblock %}
