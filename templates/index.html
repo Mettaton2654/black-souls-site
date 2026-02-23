@@ -5,10 +5,12 @@
 
 <div class="posts">
     {% for post in posts %}
-        <div class="post-card">
+        <div class="post-card" id="post-{{ post.id }}">
             <div class="post-header">
-                <img src="{{ url_for('static', filename='uploads/' + post.author.avatar) }}" alt="avatar" class="avatar" onerror="this.src='https://via.placeholder.com/50/1a1a1a/b30000?text=?'">
-                <span class="username">{{ post.author.username }}</span>
+                <a href="{{ url_for('user_profile', user_id=post.author.id) }}">
+                    <img src="{{ url_for('static', filename='uploads/' + post.author.avatar) }}" alt="avatar" class="avatar" onerror="this.src='https://via.placeholder.com/50/1a1a1a/b30000?text=?'">
+                </a>
+                <a href="{{ url_for('user_profile', user_id=post.author.id) }}" class="username">{{ post.author.username }}</a>
                 <span class="post-date">{{ post.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
                 {% if current_user.is_authenticated and (current_user.is_admin or current_user.id == post.user_id) %}
                     <div class="post-actions">
@@ -22,16 +24,56 @@
             <div class="post-content">
                 {{ post.content }}
             </div>
+
+            {% if post.sticker %}
+                <div class="post-sticker">
+                    <img src="{{ url_for('static', filename='uploads/' + post.sticker.image_file) }}" alt="{{ post.sticker.name }}" title="{{ post.sticker.description }}">
+                </div>
+            {% endif %}
+
             {% if post.attachments %}
                 <div class="post-attachments">
                     <strong>Вложения:</strong>
-                    <ul>
+                    <div class="attachment-grid">
                     {% for att in post.attachments %}
-                        <li><a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank">{{ att.filename }}</a></li>
+                        {% set ext = att.file_url.split('.')[-1].lower() %}
+                        {% if ext in ['jpg', 'jpeg', 'png', 'gif'] %}
+                            <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank">
+                                <img src="{{ url_for('static', filename='uploads/' + att.file_url) }}" alt="{{ att.filename }}" class="attachment-image">
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank" class="attachment-file">{{ att.filename }}</a>
+                        {% endif %}
                     {% endfor %}
-                    </ul>
+                    </div>
                 </div>
             {% endif %}
+
+            <!-- Комментарии -->
+            <div class="post-comments">
+                <h4>Комментарии ({{ post.comments|length }})</h4>
+                {% for comment in post.comments %}
+                    <div class="comment">
+                        <div class="comment-header">
+                            <a href="{{ url_for('user_profile', user_id=comment.author.id) }}">
+                                <img src="{{ url_for('static', filename='uploads/' + comment.author.avatar) }}" alt="avatar" class="comment-avatar" onerror="this.src='https://via.placeholder.com/30/1a1a1a/b30000?text=?'">
+                            </a>
+                            <a href="{{ url_for('user_profile', user_id=comment.author.id) }}" class="comment-author">{{ comment.author.username }}</a>
+                            <span class="comment-date">{{ comment.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
+                        </div>
+                        <div class="comment-content">{{ comment.content }}</div>
+                    </div>
+                {% endfor %}
+
+                {% if current_user.is_authenticated %}
+                    <form method="POST" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form">
+                        <textarea name="content" placeholder="Написать комментарий..." required></textarea>
+                        <button type="submit" class="btn btn-sm">Отправить</button>
+                    </form>
+                {% else %}
+                    <p><a href="{{ url_for('login') }}">Войдите</a>, чтобы оставить комментарий.</p>
+                {% endif %}
+            </div>
         </div>
     {% else %}
         <p>Пока нет постов.</p>
