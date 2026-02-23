@@ -13,9 +13,11 @@ from wtforms import ValidationError
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
+# Используем переменные окружения для чувствительных данных
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key-change-me')
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
+# Подключение к БД: либо переменная окружения DATABASE_URL, либо SQLite для локальной разработки
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -25,10 +27,8 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-with app.app_context():
-    db.create_all()
-    print("Таблицы созданы (или уже существуют)")
-# Модели
+
+# ---------- МОДЕЛИ ----------
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -50,7 +50,6 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # Связь с вложениями
     attachments = db.relationship('Attachment', backref='post', lazy=True, cascade='all, delete-orphan')
 
 class Attachment(db.Model):
@@ -63,7 +62,26 @@ class Attachment(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Формы
+# ---------- СОЗДАНИЕ ТАБЛИЦ И АДМИНИСТРАТОРА ----------
+with app.app_context():
+    db.create_all()
+    print("✅ Таблицы созданы или уже существуют.")
+    # Создаём администратора, если его нет
+    if not User.query.filter_by(email='admin@example.com').first():
+        admin = User(
+            username='admin',
+            email='admin@example.com',
+            is_admin=True,
+            can_post=True
+        )
+        admin.set_password('admin123')
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Администратор создан: admin@example.com / admin123")
+    else:
+        print("✅ Администратор уже существует.")
+
+# ---------- ФОРМЫ ----------
 class RegistrationForm(FlaskForm):
     username = StringField('Имя пользователя', validators=[DataRequired(), Length(min=2, max=20)])
     email = StringField('Email', validators=[DataRequired(), Email()])
@@ -78,7 +96,7 @@ class LoginForm(FlaskForm):
 
 class PostForm(FlaskForm):
     content = TextAreaField('Текст поста', validators=[DataRequired()])
-    files = MultipleFileField('Прикрепить файлы (изображения, документы)', 
+    files = MultipleFileField('Прикрепить файлы (изображения, документы)',
                               validators=[FileAllowed(['jpg', 'png', 'jpeg', 'gif', 'txt', 'pdf'], 'Только изображения и документы!')])
     submit = SubmitField('Опубликовать')
 
@@ -96,7 +114,7 @@ class ProfileForm(FlaskForm):
             if user:
                 raise ValidationError('Это имя уже занято. Выберите другое.')
 
-# Маршруты
+# ---------- МАРШРУТЫ ----------
 @app.route('/')
 def index():
     posts = Post.query.order_by(Post.date_posted.desc()).all()
@@ -178,14 +196,13 @@ def profile():
     form.username.data = current_user.username
     return render_template('profile.html', form=form)
 
-# --- Управление пользователями (только админ) ---
 @app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
 def admin_users():
     if not current_user.is_admin:
         flash('Доступ запрещён', 'danger')
         return redirect(url_for('index'))
-    
+
     if request.method == 'POST':
         user_id = request.form.get('user_id')
         action = request.form.get('action')
@@ -198,59 +215,52 @@ def admin_users():
             flash(f'У пользователя {user.username} отнято право создавать посты', 'warning')
         db.session.commit()
         return redirect(url_for('admin_users'))
-    
+
     users = User.query.all()
     return render_template('admin_users.html', users=users)
 
-# --- Создание поста ---
 @app.route('/create', methods=['GET', 'POST'])
 @login_required
 def create_post():
-    # Права: админ или can_post
     if not (current_user.is_admin or current_user.can_post):
         flash('У вас нет прав на создание постов', 'danger')
         return redirect(url_for('index'))
-    
+
     form = PostForm()
     if form.validate_on_submit():
         post = Post(content=form.content.data, author=current_user)
         db.session.add(post)
         db.session.flush()  # чтобы получить id
 
-        # Обработка файлов
         if form.files.data:
             for file in form.files.data:
                 if file and file.filename:
                     filename = secure_filename(file.filename)
                     ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-                    # Генерируем уникальное имя с временной меткой
                     new_filename = f"post_{post.id}_{int(time.time())}_{filename}"
                     file_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
                     file.save(file_path)
                     attachment = Attachment(filename=filename, file_url=new_filename, post_id=post.id)
                     db.session.add(attachment)
-        
+
         db.session.commit()
         flash('Пост опубликован', 'success')
         return redirect(url_for('index'))
-    
+
     return render_template('create_post.html', form=form)
 
-# --- Редактирование поста ---
 @app.route('/post/<int:post_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_post(post_id):
     post = Post.query.get_or_404(post_id)
-    # Проверка прав: админ или автор
     if not (current_user.is_admin or current_user.id == post.user_id):
         flash('У вас нет прав на редактирование этого поста', 'danger')
         return redirect(url_for('index'))
-    
+
     form = PostForm(obj=post)
     if form.validate_on_submit():
         post.content = form.content.data
-        
-        # Добавление новых файлов
+
         if form.files.data:
             for file in form.files.data:
                 if file and file.filename:
@@ -261,14 +271,13 @@ def edit_post(post_id):
                     file.save(file_path)
                     attachment = Attachment(filename=filename, file_url=new_filename, post_id=post.id)
                     db.session.add(attachment)
-        
+
         db.session.commit()
         flash('Пост обновлён', 'success')
         return redirect(url_for('index'))
-    
+
     return render_template('edit_post.html', form=form, post=post)
 
-# --- Удаление поста ---
 @app.route('/post/<int:post_id>/delete', methods=['POST'])
 @login_required
 def delete_post(post_id):
@@ -276,19 +285,17 @@ def delete_post(post_id):
     if not (current_user.is_admin or current_user.id == post.user_id):
         flash('У вас нет прав на удаление этого поста', 'danger')
         return redirect(url_for('index'))
-    
-    # Удаляем файлы с диска
+
     for att in post.attachments:
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], att.file_url)
         if os.path.exists(file_path):
             os.remove(file_path)
-    
+
     db.session.delete(post)
     db.session.commit()
     flash('Пост удалён', 'success')
     return redirect(url_for('index'))
 
-# --- Удаление отдельного вложения ---
 @app.route('/attachment/<int:attachment_id>/delete', methods=['POST'])
 @login_required
 def delete_attachment(attachment_id):
@@ -297,7 +304,7 @@ def delete_attachment(attachment_id):
     if not (current_user.is_admin or current_user.id == post.user_id):
         flash('Нет прав', 'danger')
         return redirect(url_for('index'))
-    
+
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], att.file_url)
     if os.path.exists(file_path):
         os.remove(file_path)
@@ -306,7 +313,7 @@ def delete_attachment(attachment_id):
     flash('Вложение удалено', 'success')
     return redirect(url_for('edit_post', post_id=post.id))
 
-# Команда для инициализации БД
+# ---------- КОМАНДА ДЛЯ ЛОКАЛЬНОЙ ИНИЦИАЛИЗАЦИИ (НЕ ОБЯЗАТЕЛЬНА) ----------
 @app.cli.command('init-db')
 def init_db():
     db.create_all()
