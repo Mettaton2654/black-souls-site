@@ -5,7 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, TextAreaField, SubmitField
+from wtforms import StringField, PasswordField, TextAreaField, SubmitField, SelectField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, Optional
 from datetime import datetime
 from flask_wtf.file import FileField, FileAllowed, MultipleFileField
@@ -13,11 +13,9 @@ from wtforms import ValidationError
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-# Используем переменные окружения для чувствительных данных
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key-change-me')
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
-# Подключение к БД: либо переменная окружения DATABASE_URL, либо SQLite для локальной разработки
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -35,9 +33,10 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
-    can_post = db.Column(db.Boolean, default=False)  # право создавать посты
+    can_post = db.Column(db.Boolean, default=False)
     avatar = db.Column(db.String(200), default='default_avatar.png')
     posts = db.relationship('Post', backref='author', lazy=True)
+    comments = db.relationship('Comment', backref='author', lazy=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -51,21 +50,40 @@ class Post(db.Model):
     date_posted = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     attachments = db.relationship('Attachment', backref='post', lazy=True, cascade='all, delete-orphan')
+    comments = db.relationship('Comment', backref='post', lazy=True, cascade='all, delete-orphan')
+    sticker_id = db.Column(db.Integer, db.ForeignKey('sticker.id'), nullable=True)
 
 class Attachment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    filename = db.Column(db.String(200), nullable=False)      # оригинальное имя
-    file_url = db.Column(db.String(300), nullable=False)      # сохранённое имя на диске
+    filename = db.Column(db.String(200), nullable=False)
+    file_url = db.Column(db.String(300), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    date_posted = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+
+class Sticker(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    image_file = db.Column(db.String(200), nullable=False)  # путь к файлу стикера
+    description = db.Column(db.String(200), nullable=True)
+
+    def __repr__(self):
+        return f'<Sticker {self.name}>'
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# ---------- СОЗДАНИЕ ТАБЛИЦ И АДМИНИСТРАТОРА ----------
+# ---------- СОЗДАНИЕ ТАБЛИЦ И НАЧАЛЬНЫХ ДАННЫХ ----------
 with app.app_context():
     db.create_all()
     print("✅ Таблицы созданы или уже существуют.")
+
     # Создаём администратора, если его нет
     if not User.query.filter_by(email='admin@example.com').first():
         admin = User(
@@ -80,6 +98,21 @@ with app.app_context():
         print("✅ Администратор создан: admin@example.com / admin123")
     else:
         print("✅ Администратор уже существует.")
+
+    # Создаём набор стикеров, если их нет
+    if Sticker.query.count() == 0:
+        stickers = [
+            Sticker(name='smile', image_file='stickers/smile.png', description='😊'),
+            Sticker(name='heart', image_file='stickers/heart.png', description='❤️'),
+            Sticker(name='thumbsup', image_file='stickers/thumbsup.png', description='👍'),
+            Sticker(name='cry', image_file='stickers/cry.png', description='😢'),
+            Sticker(name='fire', image_file='stickers/fire.png', description='🔥'),
+        ]
+        db.session.add_all(stickers)
+        db.session.commit()
+        print("✅ Начальные стикеры созданы.")
+    else:
+        print("✅ Стикеры уже есть.")
 
 # ---------- ФОРМЫ ----------
 class RegistrationForm(FlaskForm):
@@ -98,7 +131,12 @@ class PostForm(FlaskForm):
     content = TextAreaField('Текст поста', validators=[DataRequired()])
     files = MultipleFileField('Прикрепить файлы (изображения, документы)',
                               validators=[FileAllowed(['jpg', 'png', 'jpeg', 'gif', 'txt', 'pdf'], 'Только изображения и документы!')])
+    sticker = SelectField('Стикер', coerce=int, validators=[Optional()])
     submit = SubmitField('Опубликовать')
+
+    def __init__(self, *args, **kwargs):
+        super(PostForm, self).__init__(*args, **kwargs)
+        self.sticker.choices = [(0, 'Без стикера')] + [(s.id, s.name) for s in Sticker.query.all()]
 
 class ProfileForm(FlaskForm):
     username = StringField('Имя пользователя', validators=[DataRequired(), Length(min=2, max=20)])
@@ -118,7 +156,8 @@ class ProfileForm(FlaskForm):
 @app.route('/')
 def index():
     posts = Post.query.order_by(Post.date_posted.desc()).all()
-    return render_template('index.html', posts=posts)
+    stickers = Sticker.query.all()
+    return render_template('index.html', posts=posts, stickers=stickers)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -165,11 +204,9 @@ def logout():
 def profile():
     form = ProfileForm()
     if form.validate_on_submit():
-        # Обновляем имя
         if form.username.data != current_user.username:
             current_user.username = form.username.data
 
-        # Аватар
         if form.avatar.data and form.avatar.data.filename:
             file = form.avatar.data
             filename = secure_filename(file.filename)
@@ -179,7 +216,6 @@ def profile():
             file.save(file_path)
             current_user.avatar = new_filename
 
-        # Смена пароля
         if form.old_password.data and form.new_password.data:
             if not current_user.check_password(form.old_password.data):
                 flash('Неверный старый пароль', 'danger')
@@ -195,6 +231,28 @@ def profile():
 
     form.username.data = current_user.username
     return render_template('profile.html', form=form)
+
+@app.route('/user/<int:user_id>')
+def user_profile(user_id):
+    user = User.query.get_or_404(user_id)
+    posts = Post.query.filter_by(user_id=user.id).order_by(Post.date_posted.desc()).all()
+    comments_count = Comment.query.filter_by(user_id=user.id).count()
+    return render_template('user_profile.html', user=user, posts=posts, comments_count=comments_count)
+
+@app.route('/post/<int:post_id>/comment', methods=['POST'])
+@login_required
+def add_comment(post_id):
+    post = Post.query.get_or_404(post_id)
+    content = request.form.get('content')
+    if not content or content.strip() == '':
+        flash('Комментарий не может быть пустым', 'danger')
+        return redirect(url_for('index', _anchor=f'post-{post_id}'))
+
+    comment = Comment(content=content, author=current_user, post=post)
+    db.session.add(comment)
+    db.session.commit()
+    flash('Комментарий добавлен', 'success')
+    return redirect(url_for('index', _anchor=f'post-{post_id}'))
 
 @app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
@@ -228,9 +286,10 @@ def create_post():
 
     form = PostForm()
     if form.validate_on_submit():
-        post = Post(content=form.content.data, author=current_user)
+        sticker_id = form.sticker.data if form.sticker.data != 0 else None
+        post = Post(content=form.content.data, author=current_user, sticker_id=sticker_id)
         db.session.add(post)
-        db.session.flush()  # чтобы получить id
+        db.session.flush()
 
         if form.files.data:
             for file in form.files.data:
@@ -260,6 +319,7 @@ def edit_post(post_id):
     form = PostForm(obj=post)
     if form.validate_on_submit():
         post.content = form.content.data
+        post.sticker_id = form.sticker.data if form.sticker.data != 0 else None
 
         if form.files.data:
             for file in form.files.data:
@@ -313,18 +373,6 @@ def delete_attachment(attachment_id):
     flash('Вложение удалено', 'success')
     return redirect(url_for('edit_post', post_id=post.id))
 
-# ---------- КОМАНДА ДЛЯ ЛОКАЛЬНОЙ ИНИЦИАЛИЗАЦИИ (НЕ ОБЯЗАТЕЛЬНА) ----------
-@app.cli.command('init-db')
-def init_db():
-    db.create_all()
-    admin = User.query.filter_by(email='admin@example.com').first()
-    if not admin:
-        admin = User(username='admin', email='admin@example.com', is_admin=True, can_post=True)
-        admin.set_password('admin123')
-        db.session.add(admin)
-        db.session.commit()
-        print('Админ создан: admin@example.com / admin123')
-    print('База данных готова.')
-
+# ---------- ЗАПУСК ----------
 if __name__ == '__main__':
     app.run(debug=True)
