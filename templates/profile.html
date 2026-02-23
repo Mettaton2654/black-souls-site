@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Профиль пользователя</h1>
+
+<div class="profile-container">
+    <div class="avatar-section">
+        <img src="{{ url_for('static', filename='uploads/' + current_user.avatar) }}" alt="avatar" class="profile-avatar" onerror="this.src='https://via.placeholder.com/150/1a1a1a/b30000?text=?'">
+        <p>Текущий аватар</p>
+    </div>
+
+    <form method="POST" action="" enctype="multipart/form-data" class="profile-form">
+        {{ form.hidden_tag() }}
+        
+        <div class="form-group">
+            {{ form.username.label }}<br>
+            {{ form.username(class="form-control") }}<br>
+            {% for error in form.username.errors %}
+                <span class="error">[{{ error }}]</span>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            {{ form.avatar.label }}<br>
+            {{ form.avatar(class="form-control") }}<br>
+            {% for error in form.avatar.errors %}
+                <span class="error">[{{ error }}]</span>
+            {% endfor %}
+            <small>Разрешены форматы jpg, png, gif. Макс. размер 16 МБ.</small>
+        </div>
+
+        <hr>
+        <h3>Смена пароля (заполните, если хотите изменить)</h3>
+
+        <div class="form-group">
+            {{ form.old_password.label }}<br>
+            {{ form.old_password(class="form-control") }}<br>
+            {% for error in form.old_password.errors %}
+                <span class="error">[{{ error }}]</span>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            {{ form.new_password.label }}<br>
+            {{ form.new_password(class="form-control") }}<br>
+            {% for error in form.new_password.errors %}
+                <span class="error">[{{ error }}]</span>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            {{ form.confirm_new_password.label }}<br>
+            {{ form.confirm_new_password(class="form-control") }}<br>
+            {% for error in form.confirm_new_password.errors %}
+                <span class="error">[{{ error }}]</span>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            {{ form.submit(class="btn btn-primary") }}
+        </div>
+    </form>
+</div>
+{% endblock %}
