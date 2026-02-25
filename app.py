@@ -372,7 +372,14 @@ def delete_attachment(attachment_id):
     db.session.commit()
     flash('Вложение удалено', 'success')
     return redirect(url_for('edit_post', post_id=post.id))
-
+@app.context_processor
+def utility_processor():
+    def avatar_url(user, size='medium'):
+        base_url = url_for('static', filename='uploads/' + user.avatar)
+        # Добавляем временную метку для сброса кэша
+        cache_buster = int(datetime.utcnow().timestamp())
+        return f"{base_url}?v={cache_buster}"
+    return dict(avatar_url=avatar_url)
 # ---------- ЗАПУСК ----------
 if __name__ == '__main__':
     app.run(debug=True)
