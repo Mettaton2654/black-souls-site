@@ -2,7 +2,10 @@
 
 {% block content %}
 <h1 class="page-title">Последние посты</h1>
-
+<form method="GET" action="{{ url_for('search') }}" class="search-form">
+    <input type="text" name="q" placeholder="Поиск по постам..." value="{{ request.args.get('q', '') }}">
+    <button type="submit" class="btn btn-sm">Найти</button>
+</form>
 <div class="posts">
     {% for post in posts %}
         <div class="post-card" id="post-{{ post.id }}">
@@ -24,7 +27,12 @@
             <div class="post-content">
                 {{ post.content }}
             </div>
-
+<div class="post-footer">
+    <button class="like-btn {% if current_user.is_authenticated and post.likes|selectattr('user_id', 'equalto', current_user.id)|list %}liked{% endif %}" data-post-id="{{ post.id }}">
+        <span class="like-icon">❤️</span>
+        <span class="like-count">{{ post.likes|length }}</span>
+    </button>
+</div>
             {% if post.sticker %}
                 <div class="post-sticker">
                     <img src="{{ url_for('static', filename='uploads/' + post.sticker.image_file) }}" alt="{{ post.sticker.name }}" title="{{ post.sticker.description }}">
@@ -79,4 +87,20 @@
         <p>Пока нет постов.</p>
     {% endfor %}
 </div>
+<script>
+document.querySelectorAll('.like-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const postId = this.dataset.postId;
+        fetch(`/post/${postId}/like`, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            this.classList.toggle('liked', data.liked);
+            this.querySelector('.like-count').textContent = data.count;
+        });
+    });
+});
+</script>
 {% endblock %}
