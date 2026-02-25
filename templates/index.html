@@ -74,13 +74,17 @@
                 {% endfor %}
 
                 {% if current_user.is_authenticated %}
-                    <form method="POST" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form">
-                        <textarea name="content" placeholder="Написать комментарий..." required></textarea>
-                        <button type="submit" class="btn btn-sm">Отправить</button>
-                    </form>
-                {% else %}
-                    <p><a href="{{ url_for('login') }}">Войдите</a>, чтобы оставить комментарий.</p>
-                {% endif %}
+    <div class="post-footer">
+        <button class="like-btn {% if post.likes|selectattr('user_id', 'equalto', current_user.id)|list %}liked{% endif %}" data-post-id="{{ post.id }}">
+            <span class="like-icon">❤️</span>
+            <span class="like-count">{{ post.likes|length }}</span>
+        </button>
+    </div>
+{% else %}
+    <div class="post-footer">
+        <span class="like-count">❤️ {{ post.likes|length }}</span>
+    </div>
+{% endif %}
             </div>
         </div>
     {% else %}
