@@ -5,8 +5,28 @@
 
 <div class="profile-container">
     <div class="avatar-section">
-        <img src="{{ url_for('static', filename='uploads/' + current_user.avatar) }}" alt="avatar" class="profile-avatar" onerror="this.src='https://via.placeholder.com/150/1a1a1a/b30000?text=?'">
+        <div class="profile-avatar-large">
+            <img src="{{ avatar_url(current_user) }}" alt="avatar" id="avatar-preview">
+        </div>
         <p>Текущий аватар</p>
+        
+        <!-- Новая загрузка с обрезкой -->
+        <div class="avatar-upload">
+            <button type="button" id="change-avatar-btn" class="btn btn-sm">Изменить аватар</button>
+            <input type="file" id="avatar-input" accept="image/*" style="display: none;">
+        </div>
+    </div>
+
+    <!-- Модальное окно для обрезки -->
+    <div id="avatar-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Обрежьте аватар</h3>
+            <div class="image-container">
+                <img id="avatar-to-crop" src="" alt="Обрезка аватара">
+            </div>
+            <button type="button" id="crop-avatar-btn" class="btn">Сохранить</button>
+        </div>
     </div>
 
     <form method="POST" action="" enctype="multipart/form-data" class="profile-form">
@@ -20,14 +40,8 @@
             {% endfor %}
         </div>
 
-        <div class="form-group">
-            {{ form.avatar.label }}<br>
-            {{ form.avatar(class="form-control") }}<br>
-            {% for error in form.avatar.errors %}
-                <span class="error">[{{ error }}]</span>
-            {% endfor %}
-            <small>Разрешены форматы jpg, png, gif. Макс. размер 16 МБ.</small>
-        </div>
+        <!-- Скрытое поле для данных обрезанного аватара -->
+        <input type="hidden" id="cropped-avatar" name="cropped_avatar">
 
         <hr>
         <h3>Смена пароля (заполните, если хотите изменить)</h3>
@@ -61,4 +75,123 @@
         </div>
     </form>
 </div>
+
+<script>
+let cropper;
+const modal = document.getElementById('avatar-modal');
+const img = document.getElementById('avatar-to-crop');
+const input = document.getElementById('avatar-input');
+const btn = document.getElementById('change-avatar-btn');
+const closeBtn = document.querySelector('.close');
+const cropBtn = document.getElementById('crop-avatar-btn');
+const croppedInput = document.getElementById('cropped-avatar');
+
+btn.onclick = () => input.click();
+
+input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+            img.src = reader.result;
+            modal.style.display = 'block';
+            if (cropper) cropper.destroy();
+            cropper = new Cropper(img, {
+                aspectRatio: 1,
+                viewMode: 1,
+                autoCropArea: 1,
+                responsive: true,
+            });
+        };
+        reader.readAsDataURL(file);
+    }
+};
+
+closeBtn.onclick = () => {
+    modal.style.display = 'none';
+    if (cropper) cropper.destroy();
+};
+
+cropBtn.onclick = () => {
+    if (cropper) {
+        const canvas = cropper.getCroppedCanvas({
+            width: 300,
+            height: 300,
+        });
+        canvas.toBlob((blob) => {
+            const formData = new FormData();
+            formData.append('avatar', blob, 'avatar.png');
+            
+            // Отправляем на сервер через fetch
+            fetch('/upload-avatar', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Ошибка при загрузке');
+                }
+            });
+        });
+        modal.style.display = 'none';
+    }
+};
+
+window.onclick = (event) => {
+    if (event.target == modal) {
+        modal.style.display = 'none';
+        if (cropper) cropper.destroy();
+    }
+};
+</script>
+
+<style>
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.8);
+}
+
+.modal-content {
+    background-color: #1a1a1a;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #b30000;
+    width: 90%;
+    max-width: 600px;
+    border-radius: 10px;
+}
+
+.close {
+    color: #b30000;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #ff4d4d;
+}
+
+.image-container {
+    max-height: 400px;
+    overflow: hidden;
+    margin: 20px 0;
+}
+
+#avatar-to-crop {
+    max-width: 100%;
+    display: block;
+}
+</style>
 {% endblock %}
