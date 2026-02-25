@@ -55,6 +55,7 @@ class Post(db.Model):
     attachments = db.relationship('Attachment', backref='post', lazy=True, cascade='all, delete-orphan')
     comments = db.relationship('Comment', backref='post', lazy=True, cascade='all, delete-orphan')
     sticker_id = db.Column(db.Integer, db.ForeignKey('sticker.id'), nullable=True)
+    likes_count = db.Column(db.Integer, default=0)
 
 class Attachment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -68,6 +69,15 @@ class Comment(db.Model):
     date_posted = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+class Like(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    __table_args__ = (db.UniqueConstraint('user_id', 'post_id', name='unique_user_post_like'),)
+
+    user = db.relationship('User', backref=db.backref('likes', lazy=True))
+    post = db.relationship('Post', backref=db.backref('likes', lazy=True))
+    
 
 class Sticker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -398,6 +408,28 @@ def delete_attachment(attachment_id):
     db.session.commit()
     flash('Вложение удалено', 'success')
     return redirect(url_for('edit_post', post_id=post.id))
+@app.route('/search')
+def search():
+    query = request.args.get('q', '')
+    if query:
+        posts = Post.query.filter(Post.content.contains(query)).order_by(Post.date_posted.desc()).all()
+    else:
+        posts = []
+    return render_template('search_results.html', posts=posts, query=query)
+@app.route('/post/<int:post_id>/like', methods=['POST'])
+@login_required
+def like_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
+    if like:
+        db.session.delete(like)
+        liked = False
+    else:
+        like = Like(user_id=current_user.id, post_id=post_id)
+        db.session.add(like)
+        liked = True
+    db.session.commit()
+    return jsonify({'liked': liked, 'count': len(post.likes)})
 @app.context_processor
 def utility_processor():
     def avatar_url(user, size='medium'):
