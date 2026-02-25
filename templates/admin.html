@@ -22,7 +22,7 @@
     {% for post in posts %}
         <div class="post-card">
             <div class="post-header">
-                <img src="{{ url_for('static', filename='uploads/' + post.author.avatar) }}" alt="avatar" class="avatar">
+                <img src="{{ avatar_url(post.author) }}" alt="avatar" class="avatar">
                 <span class="username">{{ post.author.username }}</span>
                 <span class="post-date">{{ post.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
             </div>
