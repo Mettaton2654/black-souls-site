@@ -11,6 +11,9 @@ from datetime import datetime
 from flask_wtf.file import FileField, FileAllowed, MultipleFileField
 from wtforms import ValidationError
 from werkzeug.utils import secure_filename
+import io
+from PIL import Image
+import base64
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key-change-me')
@@ -253,6 +256,29 @@ def add_comment(post_id):
     db.session.commit()
     flash('Комментарий добавлен', 'success')
     return redirect(url_for('index', _anchor=f'post-{post_id}'))
+@app.route('/upload-avatar', methods=['POST'])
+@login_required
+def upload_avatar():
+    if 'avatar' not in request.files:
+        return jsonify({'success': False, 'error': 'No file'})
+    
+    file = request.files['avatar']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'})
+    
+    if file:
+        filename = secure_filename(file.filename)
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'png'
+        new_filename = f"avatar_{current_user.id}.{ext}"
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
+        file.save(file_path)
+        
+        current_user.avatar = new_filename
+        db.session.commit()
+        
+        return jsonify({'success': True})
+    
+    return jsonify({'success': False, 'error': 'Upload failed'})
 
 @app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
