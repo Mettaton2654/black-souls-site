@@ -6,7 +6,7 @@
 <div class="profile-container">
     <div class="avatar-section">
         <div class="profile-avatar-large">
-            <img src="{{ avatar_url(current_user) }}" alt="avatar" id="avatar-preview">
+            <img src="{{ url_for('static', filename='uploads/default_avatar.png') }}" alt="avatar" id="avatar-preview">
         </div>
         <p>Текущий аватар</p>
         <div class="avatar-upload">
