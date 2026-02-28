@@ -96,8 +96,16 @@ class Message(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     is_read = db.Column(db.Boolean, default=False)
 
-    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
-    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='sent_messages')
+    sender = db.relationship(
+        'User',
+        foreign_keys=[sender_id],
+        back_populates='messages_sent'
+    )
+    recipient = db.relationship(
+        'User',
+        foreign_keys=[recipient_id],
+        back_populates='messages_received'
+    )
 class Sticker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -499,7 +507,8 @@ def like_post(post_id):
     return jsonify({'liked': liked, 'count': len(post.likes)})
 @app.context_processor
 def utility_processor():
-    def avatar_url(user, size='medium'):
+    def avatar_url(user):
+        # Формируем URL к файлу аватара с параметром версии для сброса кэша
         base_url = url_for('static', filename='uploads/' + user.avatar)
         cache_buster = int(datetime.utcnow().timestamp())
         return f"{base_url}?v={cache_buster}"
