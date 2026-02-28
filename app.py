@@ -38,8 +38,18 @@ class User(UserMixin, db.Model):
     avatar = db.Column(db.String(200), default='default_avatar.png')
     posts = db.relationship('Post', backref='author', lazy=True)
     comments = db.relationship('Comment', backref='author', lazy=True)
-    messages_sent = db.relationship('Message', foreign_keys='Message.sender_id', backref='sender_ref', lazy='dynamic')
-    messages_received = db.relationship('Message', foreign_keys='Message.recipient_id', backref='recipient_ref', lazy='dynamic')
+     messages_sent = db.relationship(
+        'Message',
+        foreign_keys='Message.sender_id',
+        back_populates='sender',
+        lazy='dynamic'
+    )
+    messages_received = db.relationship(
+        'Message',
+        foreign_keys='Message.recipient_id',
+        back_populates='recipient',
+        lazy='dynamic'
+    )
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -86,8 +96,16 @@ class Message(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     is_read = db.Column(db.Boolean, default=False)
 
-    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
-    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='sent_messages')
+    sender = db.relationship(
+        'User',
+        foreign_keys=[sender_id],
+        back_populates='messages_sent'
+    )
+    recipient = db.relationship(
+        'User',
+        foreign_keys=[recipient_id],
+        back_populates='messages_received'
+    )
 class Sticker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
