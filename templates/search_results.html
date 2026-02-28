@@ -13,7 +13,7 @@
             <div class="post-card" id="post-{{ post.id }}">
                 <div class="post-header">
                     <a href="{{ url_for('user_profile', user_id=post.author.id) }}">
-                        <img src="{{ avatar_url(post.author) }}" alt="avatar" class="avatar" onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar.png'">
+                        <img src="{{ avatar_url(post.author) }}" alt="avatar" class="avatar" onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar_i5bg2p.png'">
                     </a>
                     <a href="{{ url_for('user_profile', user_id=post.author.id) }}" class="username">{{ post.author.username }}</a>
                     <span class="post-date">{{ post.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
