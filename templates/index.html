@@ -35,7 +35,7 @@
 </div>
             {% if post.sticker %}
                 <div class="post-sticker">
-                    <img src="{{ url_for('static', filename='uploads/' + post.sticker.image_file) }}" alt="{{ post.sticker.name }}" title="{{ post.sticker.description }}">
+                    <img src="{{ url_for('get_avatar', user_id=post.author.id) }}" alt="avatar" class="avatar">
                 </div>
             {% endif %}
 
@@ -47,7 +47,7 @@
                         {% set ext = att.file_url.split('.')[-1].lower() %}
                         {% if ext in ['jpg', 'jpeg', 'png', 'gif'] %}
                             <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank">
-                                <img src="{{ url_for('static', filename='uploads/' + att.file_url) }}" alt="{{ att.filename }}" class="attachment-image">
+                                <img src="{{ url_for('get_avatar', user_id=post.author.id) }}" alt="avatar" class="avatar">
                             </a>
                         {% else %}
                             <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank" class="attachment-file">{{ att.filename }}</a>
