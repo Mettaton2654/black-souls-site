@@ -14,7 +14,17 @@ from werkzeug.utils import secure_filename
 import io
 from PIL import Image
 import base64
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
+# Конфигурация Cloudinary (лучше брать из переменных окружения)
+cloudinary.config(
+    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME', 'your_cloud_name'),
+    api_key = os.environ.get('CLOUDINARY_API_KEY', 'your_api_key'),
+    api_secret = os.environ.get('CLOUDINARY_API_SECRET', 'your_api_secret'),
+    secure = True
+)
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key-change-me')
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
@@ -35,7 +45,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     can_post = db.Column(db.Boolean, default=False)
-    avatar = db.Column(db.String(200), default='default_avatar.png')
+    avatar = db.Column(db.String(300), default='https://res.cloudinary.com/your-cloud/image/upload/default_avatar.png')
     posts = db.relationship('Post', backref='author', lazy=True)
     comments = db.relationship('Comment', backref='author', lazy=True)
     messages_sent = db.relationship(
@@ -300,26 +310,35 @@ def add_comment(post_id):
 @login_required
 def upload_avatar():
     if 'avatar' not in request.files:
-        return jsonify({'success': False, 'error': 'No file'})
-    
+        return jsonify({'success': False, 'error': 'No file part'})
     file = request.files['avatar']
     if file.filename == '':
-        return jsonify({'success': False, 'error': 'No file selected'})
+        return jsonify({'success': False, 'error': 'No selected file'})
     
     if file:
-        filename = secure_filename(file.filename)
-        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'png'
-        new_filename = f"avatar_{current_user.id}.{ext}"
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
-        file.save(file_path)
-        
-        current_user.avatar = new_filename
-        db.session.commit()
-        
-        return jsonify({'success': True})
+        try:
+            # Загружаем файл в Cloudinary
+            upload_result = cloudinary.uploader.upload(
+                file,
+                folder="avatars",          # папка в облаке
+                public_id=f"user_{current_user.id}",  # уникальное имя
+                overwrite=True,             # заменять при повторной загрузке
+                transformation=[
+                    {'width': 300, 'height': 300, 'crop': 'fill'}  # сразу обрезаем до квадрата
+                ]
+            )
+            # Получаем URL загруженного изображения
+            avatar_url = upload_result['secure_url']
+            
+            # Сохраняем URL в базу
+            current_user.avatar = avatar_url
+            db.session.commit()
+            
+            return jsonify({'success': True, 'url': avatar_url})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)})
     
     return jsonify({'success': False, 'error': 'Upload failed'})
-
 @app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
 def admin_users():
@@ -508,10 +527,7 @@ def like_post(post_id):
 @app.context_processor
 def utility_processor():
     def avatar_url(user):
-        # Формируем URL к файлу аватара с параметром версии для сброса кэша
-        base_url = url_for('static', filename='uploads/' + user.avatar)
-        cache_buster = int(datetime.utcnow().timestamp())
-        return f"{base_url}?v={cache_buster}"
+        return user.avatar
     return dict(avatar_url=avatar_url)
 if __name__ == '__main__':
     app.run(debug=True)
