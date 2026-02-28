@@ -38,18 +38,8 @@ class User(UserMixin, db.Model):
     avatar = db.Column(db.String(200), default='default_avatar.png')
     posts = db.relationship('Post', backref='author', lazy=True)
     comments = db.relationship('Comment', backref='author', lazy=True)
-     messages_sent = db.relationship(
-        'Message',
-        foreign_keys='Message.sender_id',
-        back_populates='sender',
-        lazy='dynamic'
-    )
-    messages_received = db.relationship(
-        'Message',
-        foreign_keys='Message.recipient_id',
-        back_populates='recipient',
-        lazy='dynamic'
-    )
+    messages_sent = db.relationship('Message', foreign_keys='Message.sender_id', back_populates='sender', lazy='dynamic')
+    messages_received = db.relationship('Message', foreign_keys='Message.recipient_id', back_populates='recipient', lazy='dynamic')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
