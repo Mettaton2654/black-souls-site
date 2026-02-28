@@ -3,7 +3,7 @@
 {% block content %}
 <div class="profile-header">
     <div class="profile-avatar-large">
-        <img src="{{ avatar_url(post.author) }}" alt="avatar" class="avatar" onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar_i5bg2p.png'">
+        <img src="{{ avatar_url(user) }}" alt="avatar" class="avatar" onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar_i5bg2p.png'">
     </div>
     <div class="profile-info">
         <h1>{{ user.username }}</h1>
@@ -25,7 +25,7 @@
     {% for post in posts %}
         <div class="post-card">
             <div class="post-header">
-                <img src="{{ avatar_url(post.author) }}" alt="avatar" class="avatar" onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar_i5bg2p.png'">
+                <img src="{{ avatar_url(user) }}" alt="avatar" class="avatar" onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar_i5bg2p.png'">
                 <span class="username">{{ post.author.username }}</span>
                 <span class="post-date">{{ post.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
             </div>
