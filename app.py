@@ -35,13 +35,11 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     can_post = db.Column(db.Boolean, default=False)
-    avatar_data = db.Column(db.LargeBinary)  # для хранения самих байт изображения
-    avatar_filename = db.Column(db.String(200))  # для оригинального имени файла
-    avatar_mimetype = db.Column(db.String(50))  # например 'image/jpeg'
+    avatar = db.Column(db.String(200), default='default_avatar.png')
     posts = db.relationship('Post', backref='author', lazy=True)
     comments = db.relationship('Comment', backref='author', lazy=True)
-    messages_sent = db.relationship('Message', foreign_keys='Message.sender_id', back_populates='sender', lazy='dynamic')
-    messages_received = db.relationship('Message', foreign_keys='Message.recipient_id', back_populates='recipient', lazy='dynamic')
+    messages_sent = db.relationship('Message', foreign_keys='Message.sender_id', backref='sender_ref', lazy='dynamic')
+    messages_received = db.relationship('Message', foreign_keys='Message.recipient_id', backref='recipient_ref', lazy='dynamic')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -88,16 +86,8 @@ class Message(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     is_read = db.Column(db.Boolean, default=False)
 
-    sender = db.relationship(
-        'User',
-        foreign_keys=[sender_id],
-        back_populates='messages_sent'
-    )
-    recipient = db.relationship(
-        'User',
-        foreign_keys=[recipient_id],
-        back_populates='messages_received'
-    )
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
+    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='sent_messages')
 class Sticker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -292,35 +282,26 @@ def add_comment(post_id):
 @login_required
 def upload_avatar():
     if 'avatar' not in request.files:
-        return jsonify({'success': False, 'error': 'No file part'})
+        return jsonify({'success': False, 'error': 'No file'})
     
     file = request.files['avatar']
     if file.filename == '':
-        return jsonify({'success': False, 'error': 'No selected file'})
+        return jsonify({'success': False, 'error': 'No file selected'})
     
     if file:
-        # Читаем файл в байты
-        image_bytes = file.read()
+        filename = secure_filename(file.filename)
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'png'
+        new_filename = f"avatar_{current_user.id}.{ext}"
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
+        file.save(file_path)
         
-        # Сохраняем в базу данных
-        current_user.avatar_data = image_bytes
-        current_user.avatar_filename = secure_filename(file.filename)
-        current_user.avatar_mimetype = file.content_type
-        
+        current_user.avatar = new_filename
         db.session.commit()
+        
         return jsonify({'success': True})
     
     return jsonify({'success': False, 'error': 'Upload failed'})
-@app.route('/avatar/<int:user_id>')
-def get_avatar(user_id):
-    user = User.query.get_or_404(user_id)
-    if user.avatar_data:
-        response = make_response(user.avatar_data)
-        response.headers.set('Content-Type', user.avatar_mimetype or 'image/png')
-        return response
-    else:
-        # Возвращаем аватар по умолчанию (из файла)
-        return redirect(url_for('static', filename='uploads/default_avatar.png'))
+
 @app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
 def admin_users():
