@@ -526,11 +526,16 @@ def like_post(post_id):
     return jsonify({'liked': liked, 'count': len(post.likes)})
 @app.context_processor
 @app.context_processor
+@app.context_processor
 def utility_processor():
     def avatar_url(user):
+        from datetime import datetime
         if user is None or user.avatar is None:
-            # Возвращаем путь к дефолтному аватару (замените на ваш)
             return url_for('static', filename='uploads/default_avatar.png')
+        # Если avatar уже содержит http, возвращаем как есть (без изменений)
+        if user.avatar.startswith('http'):
+            return user.avatar
+        # Иначе строим локальный путь с версией
         base_url = url_for('static', filename='uploads/' + user.avatar)
         cache_buster = int(datetime.utcnow().timestamp())
         return f"{base_url}?v={cache_buster}"
