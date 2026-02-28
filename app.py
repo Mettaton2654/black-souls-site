@@ -18,18 +18,16 @@ import base64
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key-change-me')
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Создаём папку для загрузок, если её нет
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# ---------- МОДЕЛИ ----------
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -40,6 +38,8 @@ class User(UserMixin, db.Model):
     avatar = db.Column(db.String(200), default='default_avatar.png')
     posts = db.relationship('Post', backref='author', lazy=True)
     comments = db.relationship('Comment', backref='author', lazy=True)
+    messages_sent = db.relationship('Message', foreign_keys='Message.sender_id', backref='sender_ref', lazy='dynamic')
+    messages_received = db.relationship('Message', foreign_keys='Message.recipient_id', backref='recipient_ref', lazy='dynamic')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -78,11 +78,20 @@ class Like(db.Model):
     user = db.relationship('User', backref=db.backref('likes', lazy=True))
     post = db.relationship('Post', backref=db.backref('likes', lazy=True))
     
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    is_read = db.Column(db.Boolean, default=False)
 
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
+    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='sent_messages')
 class Sticker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    image_file = db.Column(db.String(200), nullable=False)  # путь к файлу стикера
+    image_file = db.Column(db.String(200), nullable=False)
     description = db.Column(db.String(200), nullable=True)
 
     def __repr__(self):
@@ -92,27 +101,23 @@ class Sticker(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# ---------- СОЗДАНИЕ ТАБЛИЦ И НАЧАЛЬНЫХ ДАННЫХ ----------
 with app.app_context():
     db.create_all()
     print("✅ Таблицы созданы или уже существуют.")
-
-    # Создаём администратора, если его нет
-    if not User.query.filter_by(email='admin@example.com').first():
+    if not User.query.filter_by(email='xanturi@mail.ru').first():
         admin = User(
             username='admin',
-            email='admin@example.com',
+            email='xanturi@mail.ru',
             is_admin=True,
             can_post=True
         )
-        admin.set_password('admin123')
+        admin.set_password('OBURTY3129')
         db.session.add(admin)
         db.session.commit()
-        print("✅ Администратор создан: admin@example.com / admin123")
+        print("✅ Администратор создан: xanturi@mail.ru")
     else:
         print("✅ Администратор уже существует.")
 
-    # Создаём набор стикеров, если их нет
     if Sticker.query.count() == 0:
         stickers = [
             Sticker(name='smile', image_file='stickers/smile.png', description='😊'),
@@ -126,15 +131,12 @@ with app.app_context():
         print("✅ Начальные стикеры созданы.")
     else:
         print("✅ Стикеры уже есть.")
-
-# ---------- ФОРМЫ ----------
 class RegistrationForm(FlaskForm):
     username = StringField('Имя пользователя', validators=[DataRequired(), Length(min=2, max=20)])
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Пароль', validators=[DataRequired()])
     confirm_password = PasswordField('Подтвердите пароль', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Зарегистрироваться')
-
 class LoginForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Пароль', validators=[DataRequired()])
@@ -164,6 +166,16 @@ class ProfileForm(FlaskForm):
             user = User.query.filter_by(username=username.data).first()
             if user:
                 raise ValidationError('Это имя уже занято. Выберите другое.')
+
+class MessageForm(FlaskForm):
+    recipient = SelectField('Получатель', coerce=int, validators=[DataRequired()])
+    content = TextAreaField('Сообщение', validators=[DataRequired(), Length(min=1, max=1000)])
+    submit = SubmitField('Отправить')
+
+    def __init__(self, *args, **kwargs):
+        super(MessageForm, self).__init__(*args, **kwargs)
+        # Заполняем список получателей (все пользователи кроме текущего)
+        self.recipient.choices = [(u.id, u.username) for u in User.query.filter(User.id != current_user.id).all()]
 
 # ---------- МАРШРУТЫ ----------
 @app.route('/')
@@ -408,6 +420,51 @@ def delete_attachment(attachment_id):
     db.session.commit()
     flash('Вложение удалено', 'success')
     return redirect(url_for('edit_post', post_id=post.id))
+
+@app.route('/messages')
+@login_required
+def messages():
+    # Получаем все сообщения для текущего пользователя
+    received_messages = Message.query.filter_by(recipient_id=current_user.id).order_by(Message.timestamp.desc()).all()
+    sent_messages = Message.query.filter_by(sender_id=current_user.id).order_by(Message.timestamp.desc()).all()
+    
+    # Отмечаем полученные сообщения как прочитанные
+    for msg in received_messages:
+        if not msg.is_read:
+            msg.is_read = True
+    db.session.commit()
+    
+    return render_template('messages.html', received_messages=received_messages, sent_messages=sent_messages)
+
+@app.route('/messages/send', methods=['GET', 'POST'])
+@login_required
+def send_message():
+    form = MessageForm()
+    if form.validate_on_submit():
+        message = Message(
+            sender_id=current_user.id,
+            recipient_id=form.recipient.data,
+            content=form.content.data
+        )
+        db.session.add(message)
+        db.session.commit()
+        flash('Сообщение отправлено', 'success')
+        return redirect(url_for('messages'))
+    
+    return render_template('send_message.html', form=form)
+
+@app.route('/messages/delete/<int:message_id>', methods=['POST'])
+@login_required
+def delete_message(message_id):
+    message = Message.query.get_or_404(message_id)
+    if message.sender_id != current_user.id and message.recipient_id != current_user.id:
+        flash('У вас нет прав на удаление этого сообщения', 'danger')
+        return redirect(url_for('messages'))
+    
+    db.session.delete(message)
+    db.session.commit()
+    flash('Сообщение удалено', 'success')
+    return redirect(url_for('messages'))
 @app.route('/search')
 def search():
     query = request.args.get('q', '')
@@ -434,10 +491,8 @@ def like_post(post_id):
 def utility_processor():
     def avatar_url(user, size='medium'):
         base_url = url_for('static', filename='uploads/' + user.avatar)
-        # Добавляем временную метку для сброса кэша
         cache_buster = int(datetime.utcnow().timestamp())
         return f"{base_url}?v={cache_buster}"
     return dict(avatar_url=avatar_url)
-# ---------- ЗАПУСК ----------
 if __name__ == '__main__':
     app.run(debug=True)

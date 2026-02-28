@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 class="page-title">Результаты поиска</h1>
+<div class="search-info">
+    <p>Найдено постов по запросу "<strong>{{ query }}</strong>": {{ posts|length }}</p>
+    <a href="{{ url_for('index') }}" class="btn btn-sm">Вернуться к ленте</a>
+</div>
+
+{% if posts %}
+    <div class="posts">
+        {% for post in posts %}
+            <div class="post-card" id="post-{{ post.id }}">
+                <div class="post-header">
+                    <a href="{{ url_for('user_profile', user_id=post.author.id) }}">
+                        <img src="{{ avatar_url(post.author) }}" alt="avatar" class="avatar" onerror="this.src='https://via.placeholder.com/50/1a1a1a/b30000?text=?'">
+                    </a>
+                    <a href="{{ url_for('user_profile', user_id=post.author.id) }}" class="username">{{ post.author.username }}</a>
+                    <span class="post-date">{{ post.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
+                    {% if current_user.is_authenticated and (current_user.is_admin or current_user.id == post.user_id) %}
+                        <div class="post-actions">
+                            <a href="{{ url_for('edit_post', post_id=post.id) }}" class="btn btn-sm">Редактировать</a>
+                            <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" style="display:inline;" onsubmit="return confirm('Удалить пост?');">
+                                <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="post-content">
+                    {{ post.content }}
+                </div>
+                <div class="post-footer">
+                    <button class="like-btn {% if current_user.is_authenticated and post.likes|selectattr('user_id', 'equalto', current_user.id)|list %}liked{% endif %}" data-post-id="{{ post.id }}">
+                        <span class="like-icon">❤️</span>
+                        <span class="like-count">{{ post.likes|length }}</span>
+                    </button>
+                </div>
+                {% if post.sticker %}
+                    <div class="post-sticker">
+                        <img src="{{ url_for('static', filename='uploads/' + post.sticker.image_file) }}" alt="{{ post.sticker.name }}" title="{{ post.sticker.description }}">
+                    </div>
+                {% endif %}
+
+                {% if post.attachments %}
+                    <div class="post-attachments">
+                        <strong>Вложения:</strong>
+                        <div class="attachment-grid">
+                        {% for att in post.attachments %}
+                            {% set ext = att.file_url.split('.')[-1].lower() %}
+                            {% if ext in ['jpg', 'jpeg', 'png', 'gif'] %}
+                                <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank">
+                                    <img src="{{ url_for('static', filename='uploads/' + att.file_url) }}" alt="{{ att.filename }}" class="attachment-image">
+                                </a>
+                            {% else %}
+                                <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank" class="attachment-file">{{ att.filename }}</a>
+                            {% endif %}
+                        {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Комментарии -->
+                <div class="post-comments">
+                    <h4>Комментарии ({{ post.comments|length }})</h4>
+                    {% for comment in post.comments %}
+                        <div class="comment">
+                            <div class="comment-header">
+                                <a href="{{ url_for('user_profile', user_id=comment.author.id) }}">
+                                    <img src="{{ url_for('static', filename='uploads/' + comment.author.avatar) }}" alt="avatar" class="comment-avatar" onerror="this.src='https://via.placeholder.com/30/1a1a1a/b30000?text=?'">
+                                </a>
+                                <a href="{{ url_for('user_profile', user_id=comment.author.id) }}" class="comment-author">{{ comment.author.username }}</a>
+                                <span class="comment-date">{{ comment.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
+                            </div>
+                            <div class="comment-content">{{ comment.content }}</div>
+                        </div>
+                    {% endfor %}
+
+                    {% if current_user.is_authenticated %}
+                        <form method="POST" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form">
+                            <textarea name="content" placeholder="Оставить комментарий..." required></textarea>
+                            <button type="submit" class="btn">Отправить</button>
+                        </form>
+                    {% else %}
+                        <p class="comment-login-prompt">Чтобы оставить комментарий, <a href="{{ url_for('login') }}">войдите</a> или <a href="{{ url_for('register') }}">зарегистрируйтесь</a>.</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="no-results">
+        <p>По вашему запросу ничего не найдено.</p>
+        <p>Попробуйте изменить поисковый запрос или <a href="{{ url_for('index') }}">вернуться к ленте</a>.</p>
+    </div>
+{% endif %}
+{% endblock %}

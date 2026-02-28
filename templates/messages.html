@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 class="page-title">Личные сообщения</h1>
+
+<div class="messages-container">
+    <div class="messages-actions">
+        <a href="{{ url_for('send_message') }}" class="btn">Написать сообщение</a>
+    </div>
+
+    <div class="messages-grid">
+        <div class="messages-section">
+            <h2>Входящие сообщения</h2>
+            {% if received_messages %}
+                {% for message in received_messages %}
+                    <div class="message-card {% if not message.is_read %}unread{% endif %}">
+                        <div class="message-header">
+                            <span class="message-sender">От: {{ message.sender.username }}</span>
+                            <span class="message-time">{{ message.timestamp.strftime('%d.%m.%Y %H:%M') }}</span>
+                            <form method="POST" action="{{ url_for('delete_message', message_id=message.id) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить сообщение?')">Удалить</button>
+                            </form>
+                        </div>
+                        <div class="message-content">{{ message.content }}</div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>У вас нет входящих сообщений.</p>
+            {% endif %}
+        </div>
+
+        <div class="messages-section">
+            <h2>Исходящие сообщения</h2>
+            {% if sent_messages %}
+                {% for message in sent_messages %}
+                    <div class="message-card">
+                        <div class="message-header">
+                            <span class="message-recipient">Кому: {{ message.recipient.username }}</span>
+                            <span class="message-time">{{ message.timestamp.strftime('%d.%m.%Y %H:%M') }}</span>
+                            <form method="POST" action="{{ url_for('delete_message', message_id=message.id) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить сообщение?')">Удалить</button>
+                            </form>
+                        </div>
+                        <div class="message-content">{{ message.content }}</div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>Вы не отправляли сообщений.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

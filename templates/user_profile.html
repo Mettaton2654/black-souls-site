@@ -7,8 +7,7 @@
     </div>
     <div class="profile-info">
         <h1>{{ user.username }}</h1>
-        <p>Email: {{ user.email }}</p>
-        <p>Зарегистрирован: {{ user.id }}</p> {# можно заменить на поле date_registered, если добавите #}
+        <p>Пользователь ID: {{ user.id }}</p>
         <div class="profile-stats">
             <span>Постов: {{ posts|length }}</span>
             <span>Комментариев: {{ comments_count }}</span>
