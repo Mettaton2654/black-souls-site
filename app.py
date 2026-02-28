@@ -525,9 +525,15 @@ def like_post(post_id):
     db.session.commit()
     return jsonify({'liked': liked, 'count': len(post.likes)})
 @app.context_processor
+@app.context_processor
 def utility_processor():
     def avatar_url(user):
-        return user.avatar
+        if user is None or user.avatar is None:
+            # Возвращаем путь к дефолтному аватару (замените на ваш)
+            return url_for('static', filename='uploads/default_avatar.png')
+        base_url = url_for('static', filename='uploads/' + user.avatar)
+        cache_buster = int(datetime.utcnow().timestamp())
+        return f"{base_url}?v={cache_buster}"
     return dict(avatar_url=avatar_url)
 if __name__ == '__main__':
     app.run(debug=True)
