@@ -5,6 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import FlaskForm
+from flask_wtf.csrf import CSRFProtect
 from wtforms import StringField, PasswordField, TextAreaField, SubmitField, SelectField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, Optional
 from datetime import datetime
@@ -14,17 +15,22 @@ from werkzeug.utils import secure_filename
 import io
 from PIL import Image
 import base64
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
+# Cloudinary (опционально). Если модуль не установлен, загрузка будет идти на локальный диск.
+try:
+    import cloudinary
+    import cloudinary.uploader
+    import cloudinary.api
 
-# Конфигурация Cloudinary (лучше брать из переменных окружения)
-cloudinary.config(
-    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME', 'your_cloud_name'),
-    api_key = os.environ.get('CLOUDINARY_API_KEY', 'your_api_key'),
-    api_secret = os.environ.get('CLOUDINARY_API_SECRET', 'your_api_secret'),
-    secure = True
-)
+    cloudinary_enabled = True
+    cloudinary.config(
+        cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME', 'your_cloud_name'),
+        api_key=os.environ.get('CLOUDINARY_API_KEY', 'your_api_key'),
+        api_secret=os.environ.get('CLOUDINARY_API_SECRET', 'your_api_secret'),
+        secure=True
+    )
+except ImportError:
+    cloudinary_enabled = False
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key-change-me')
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
@@ -37,6 +43,8 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
+csrf = CSRFProtect(app)
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -132,33 +140,44 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
     print("✅ Таблицы созданы или уже существуют.")
-    if not User.query.filter_by(email='xanturi@mail.ru').first():
-        admin = User(
-            username='admin',
-            email='xanturi@mail.ru',
-            is_admin=True,
-            can_post=True
-        )
-        admin.set_password('OBURTY3129')
-        db.session.add(admin)
-        db.session.commit()
-        print("✅ Администратор создан: xanturi@mail.ru")
-    else:
-        print("✅ Администратор уже существует.")
+    try:
+        admin_exists = User.query.filter(
+            (User.email == 'xanturi@mail.ru') | (User.username == 'admin')
+        ).first()
+        if not admin_exists:
+            admin = User(
+                username='admin',
+                email='xanturi@mail.ru',
+                is_admin=True,
+                can_post=True
+            )
+            admin.set_password('OBURTY3129')
+            db.session.add(admin)
+            db.session.commit()
+            print("✅ Администратор создан: xanturi@mail.ru")
+        else:
+            print("✅ Администратор уже существует.")
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ Ошибка при создании администратора: {e}")
 
-    if Sticker.query.count() == 0:
-        stickers = [
-            Sticker(name='smile', image_file='stickers/smile.png', description='😊'),
-            Sticker(name='heart', image_file='stickers/heart.png', description='❤️'),
-            Sticker(name='thumbsup', image_file='stickers/thumbsup.png', description='👍'),
-            Sticker(name='cry', image_file='stickers/cry.png', description='😢'),
-            Sticker(name='fire', image_file='stickers/fire.png', description='🔥'),
-        ]
-        db.session.add_all(stickers)
-        db.session.commit()
-        print("✅ Начальные стикеры созданы.")
-    else:
-        print("✅ Стикеры уже есть.")
+    try:
+        if Sticker.query.count() == 0:
+            stickers = [
+                Sticker(name='smile', image_file='stickers/smile.png', description='😊'),
+                Sticker(name='heart', image_file='stickers/heart.png', description='❤️'),
+                Sticker(name='thumbsup', image_file='stickers/thumbsup.png', description='👍'),
+                Sticker(name='cry', image_file='stickers/cry.png', description='😢'),
+                Sticker(name='fire', image_file='stickers/fire.png', description='🔥'),
+            ]
+            db.session.add_all(stickers)
+            db.session.commit()
+            print("✅ Начальные стикеры созданы.")
+        else:
+            print("✅ Стикеры уже есть.")
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ Ошибка при создании стикеров: {e}")
 class RegistrationForm(FlaskForm):
     username = StringField('Имя пользователя', validators=[DataRequired(), Length(min=2, max=20)])
     email = StringField('Email', validators=[DataRequired(), Email()])
@@ -299,13 +318,19 @@ def add_comment(post_id):
     content = request.form.get('content')
     if not content or content.strip() == '':
         flash('Комментарий не может быть пустым', 'danger')
-        return redirect(url_for('index', _anchor=f'post-{post_id}'))
+        return redirect(url_for('post_detail', post_id=post_id))
 
     comment = Comment(content=content, author=current_user, post=post)
     db.session.add(comment)
     db.session.commit()
     flash('Комментарий добавлен', 'success')
-    return redirect(url_for('index', _anchor=f'post-{post_id}'))
+    return redirect(url_for('post_detail', post_id=post_id))
+
+@app.route('/post/<int:post_id>')
+def post_detail(post_id):
+    post = Post.query.get_or_404(post_id)
+    return render_template('post_detail.html', post=post)
+
 @app.route('/upload-avatar', methods=['POST'])
 @login_required
 def upload_avatar():
@@ -317,27 +342,35 @@ def upload_avatar():
     
     if file:
         try:
-            # Загружаем файл в Cloudinary
-            upload_result = cloudinary.uploader.upload(
-                file,
-                folder="avatars",          # папка в облаке
-                public_id=f"user_{current_user.id}",  # уникальное имя
-                overwrite=True,             # заменять при повторной загрузке
-                transformation=[
-                    {'width': 300, 'height': 300, 'crop': 'fill'}  # сразу обрезаем до квадрата
-                ]
-            )
-            # Получаем URL загруженного изображения
-            avatar_url = upload_result['secure_url']
-            
-            # Сохраняем URL в базу
+            if cloudinary_enabled:
+                # Загружаем файл в Cloudinary
+                upload_result = cloudinary.uploader.upload(
+                    file,
+                    folder="avatars",          # папка в облаке
+                    public_id=f"user_{current_user.id}",  # уникальное имя
+                    overwrite=True,             # заменять при повторной загрузке
+                    transformation=[
+                        {'width': 300, 'height': 300, 'crop': 'fill'}  # сразу обрезаем до квадрата
+                    ]
+                )
+                avatar_url = upload_result['secure_url']
+            else:
+                # Сохраняем файл локально
+                filename = secure_filename(file.filename)
+                ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+                new_filename = f"avatar_{current_user.id}.{ext}" if ext else f"avatar_{current_user.id}.png"
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
+                file.save(file_path)
+                avatar_url = url_for('static', filename=f'uploads/{new_filename}')
+
+            # Сохраняем URL/путь в базу
             current_user.avatar = avatar_url
             db.session.commit()
-            
+
             return jsonify({'success': True, 'url': avatar_url})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)})
-    
+
     return jsonify({'success': False, 'error': 'Upload failed'})
 @app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
@@ -440,6 +473,20 @@ def delete_post(post_id):
     db.session.commit()
     flash('Пост удалён', 'success')
     return redirect(url_for('index'))
+
+@app.route('/comment/<int:comment_id>/delete', methods=['POST'])
+@login_required
+def delete_comment(comment_id):
+    comment = Comment.query.get_or_404(comment_id)
+    post_id = comment.post_id
+    if not (current_user.is_admin or current_user.id == comment.user_id):
+        flash('У вас нет прав на удаление этого комментария', 'danger')
+        return redirect(url_for('post_detail', post_id=post_id))
+
+    db.session.delete(comment)
+    db.session.commit()
+    flash('Комментарий удалён', 'success')
+    return redirect(url_for('post_detail', post_id=post_id))
 
 @app.route('/attachment/<int:attachment_id>/delete', methods=['POST'])
 @login_required

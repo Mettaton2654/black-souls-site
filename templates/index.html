@@ -19,6 +19,7 @@
                     <div class="post-actions">
                         <a href="{{ url_for('edit_post', post_id=post.id) }}" class="btn btn-sm">Редактировать</a>
                         <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" style="display:inline;" onsubmit="return confirm('Удалить пост?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
                         </form>
                     </div>
@@ -27,7 +28,10 @@
             <div class="post-content">
                 {{ post.content }}
             </div>
-<div class="post-footer">
+            <div class="post-comments-link">
+                <a href="{{ url_for('post_detail', post_id=post.id) }}">Перейти к посту ({{ post.comments|length }} комментариев)</a>
+            </div>
+            <div class="post-footer">
     <button class="like-btn {% if current_user.is_authenticated and post.likes|selectattr('user_id', 'equalto', current_user.id)|list %}liked{% endif %}" data-post-id="{{ post.id }}">
         <span class="like-icon">❤️</span>
         <span class="like-count">{{ post.likes|length }}</span>
@@ -87,20 +91,4 @@
         <p>Пока нет постов.</p>
     {% endfor %}
 </div>
-<script>
-document.querySelectorAll('.like-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const postId = this.dataset.postId;
-        fetch(`/post/${postId}/like`, {
-            method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(response => response.json())
-        .then(data => {
-            this.classList.toggle('liked', data.liked);
-            this.querySelector('.like-count').textContent = data.count;
-        });
-    });
-});
-</script>
 {% endblock %}

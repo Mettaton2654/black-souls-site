@@ -55,7 +55,7 @@
                 </div>
             {% endif %}
             <div class="post-comments-link">
-                <a href="{{ url_for('index', _anchor='post-' + post.id|string) }}">Перейти к посту ({{ post.comments|length }} комментариев)</a>
+                <a href="{{ url_for('post_detail', post_id=post.id) }}">Перейти к посту ({{ post.comments|length }} комментариев)</a>
             </div>
         </div>
     {% else %}

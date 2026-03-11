@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Individuality is not neccesary</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block head %}{% endblock %}
 </head>
@@ -44,6 +45,13 @@
         {% block content %}{% endblock %}
     </div>
 
+    <footer class="site-footer">
+        <div class="container">
+            <p>Этот сайт — учебный проект. Все материалы используются только в демонстрационных целях.</p>
+            <p>© {{ "now"|date("Y") }} Индивидуальность не обязательна</p>
+        </div>
+    </footer>
+
     <script>
         function toggleMenu() {
             var menu = document.getElementById('navMenu');
@@ -51,6 +59,7 @@
         }
     </script>
     <script src="{{ url_for('static', filename='js/animations.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/likes.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

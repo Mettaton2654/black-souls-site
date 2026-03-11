@@ -745,6 +745,20 @@ small {
     background: rgba(179, 0, 0, 0.25);
 }
 
+.site-footer {
+    padding: 20px 0;
+    background: rgba(10, 10, 10, 0.75);
+    border-top: 1px solid rgba(179, 0, 0, 0.5);
+    margin-top: 40px;
+    text-align: center;
+    color: #aaa;
+    font-size: 0.9em;
+}
+
+.site-footer p {
+    margin: 4px 0;
+}
+
 @media (max-width: 768px) {
     .mobile-menu-btn {
         display: block;
