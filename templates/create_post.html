@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Новый пост</h1>
+<form method="POST" enctype="multipart/form-data">
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+        {{ form.content.label }}<br>
+        {{ form.content(class="form-control", rows=5) }}<br>
+        {% for error in form.content.errors %}
+            <span class="error">[{{ error }}]</span>
+        {% endfor %}
+    </div>
+    <div class="form-group">
+        {{ form.sticker.label }}<br>
+        {{ form.sticker(class="form-control") }}<br>
+        {% for error in form.sticker.errors %}
+            <span class="error">[{{ error }}]</span>
+        {% endfor %}
+    </div>
+    <div class="form-group">
+        {{ form.files.label }}<br>
+        {{ form.files(class="form-control", multiple=True) }}<br>
+        {% for error in form.files.errors %}
+            <span class="error">[{{ error }}]</span>
+        {% endfor %}
+        <small>Можно выбрать несколько файлов (jpg, png, gif, txt, pdf)</small>
+    </div>
+    <div class="form-group">
+        {{ form.submit(class="btn btn-primary") }}
+    </div>
+</form>
+{% endblock %}

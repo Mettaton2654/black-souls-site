@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<h1>Профиль пользователя</h1>
+<div class="profile-container">
+    <div class="avatar-section">
+        <div class="profile-avatar-large">
+            <img src="{{ avatar_url(current_user) }}" alt="avatar" id="avatar-preview">
+        </div>
+        <p>Текущий аватар</p>
+        <div class="avatar-upload">
+            <button type="button" id="change-avatar-btn" class="btn btn-sm">Изменить аватар</button>
+            <input type="file" id="avatar-input" accept="image/*" style="display: none;">
+        </div>
+    </div>
+    <div id="avatar-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Обрежьте аватар</h3>
+            <div class="image-container">
+                <img id="avatar-to-crop" src="" alt="Обрезка аватара">
+            </div>
+            <button type="button" id="crop-avatar-btn" class="btn">Сохранить</button>
+        </div>
+    </div>
+
+    <form method="POST" action="" enctype="multipart/form-data" class="profile-form">
+        {{ form.hidden_tag() }}
+        
+        <div class="form-group">
+            {{ form.username.label }}<br>
+            {{ form.username(class="form-control") }}<br>
+            {% for error in form.username.errors %}
+                <span class="error">[{{ error }}]</span>
+            {% endfor %}
+        </div>
+        <input type="hidden" id="cropped-avatar" name="cropped_avatar">
+
+        <hr>
+        <h3>Смена пароля (заполните, если хотите изменить)</h3>
+
+        <div class="form-group">
+            {{ form.old_password.label }}<br>
+            {{ form.old_password(class="form-control") }}<br>
+            {% for error in form.old_password.errors %}
+                <span class="error">[{{ error }}]</span>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            {{ form.new_password.label }}<br>
+            {{ form.new_password(class="form-control") }}<br>
+            {% for error in form.new_password.errors %}
+                <span class="error">[{{ error }}]</span>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            {{ form.confirm_new_password.label }}<br>
+            {{ form.confirm_new_password(class="form-control") }}<br>
+            {% for error in form.confirm_new_password.errors %}
+                <span class="error">[{{ error }}]</span>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            {{ form.submit(class="btn btn-primary") }}
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/profile.js') }}"></script>
+{% endblock %}

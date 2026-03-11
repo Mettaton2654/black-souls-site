@@ -1,0 +1,23 @@
+.close {
+    color: var(--accent);
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color var(--transition);
+}
+
+.close:hover {
+    color: var(--accent-2);
+}
+
+.image-container {
+    max-height: 400px;
+    overflow: hidden;
+    margin: 20px 0;
+}
+
+#avatar-to-crop {
+    max-width: 100%;
+    display: block;
+}

@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="post-detail-container">
+    <!-- Кнопка назад -->
+    <div class="back-navigation">
+        <a href="{{ url_for('index') }}" class="back-link">← Назад к ленте</a>
+    </div>
+    <div class="post-card detail-view" id="post-{{ post.id }}">
+        <div class="post-header">
+            <a href="{{ url_for('user_profile', user_id=post.author.id) }}">
+                <img src="{{ avatar_url(post.author) }}" alt="avatar" class="avatar" onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar_i5bg2p.png'">
+            </a>
+            <a href="{{ url_for('user_profile', user_id=post.author.id) }}" class="username">{{ post.author.username }}</a>
+            <span class="post-date">{{ post.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
+            
+            {% if current_user.is_authenticated and (current_user.is_admin or current_user.id == post.user_id) %}
+                <div class="post-actions">
+                    <a href="{{ url_for('edit_post', post_id=post.id) }}" class="btn btn-sm">Редактировать</a>
+                    <button onclick="confirmDelete({{ post.id }})" class="btn btn-sm btn-danger">Удалить</button>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="post-content detail-content">
+            {{ post.content }}
+        </div>
+
+        {% if post.sticker %}
+            <div class="post-sticker">
+                <img src="{{ post.sticker.image_file }}" alt="{{ post.sticker.name }}" title="{{ post.sticker.description }}">
+            </div>
+        {% endif %}
+
+        {% if post.attachments %}
+            <div class="post-attachments">
+                <strong>Вложения:</strong>
+                <div class="attachment-grid">
+                {% for att in post.attachments %}
+                    {% set ext = att.file_url.split('.')[-1].lower() %}
+                    {% if ext in ['jpg', 'jpeg', 'png', 'gif'] %}
+                        <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank">
+                            <img src="{{ url_for('static', filename='uploads/' + att.file_url) }}" alt="{{ att.filename }}" class="attachment-image">
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('static', filename='uploads/' + att.file_url) }}" target="_blank" class="attachment-file">{{ att.filename }}</a>
+                    {% endif %}
+                {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Статистика поста -->
+        <div class="post-stats">
+            <div class="stat-item">
+                <span class="stat-label">👁 Просмотров:</span>
+                <span class="stat-value">{{ post.views|default(0) }}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">❤️ Лайков:</span>
+                <span class="stat-value" id="like-count-{{ post.id }}">{{ post.likes|length }}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">💬 Комментариев:</span>
+                <span class="stat-value">{{ post.comments|length }}</span>
+            </div>
+        </div>
+
+        <!-- Кнопка лайка -->
+        {% if current_user.is_authenticated %}
+            <div class="like-section">
+                <button class="like-btn {% if current_user.id in post.likes|map(attribute='user_id')|list %}liked{% endif %}" 
+                        data-post-id="{{ post.id }}" 
+                        onclick="likePost(this, {{ post.id }})">
+                    <span class="like-icon">❤️</span>
+                    <span class="like-count">{{ post.likes|length }}</span>
+                </button>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Секция комментариев -->
+    <div class="comments-section">
+        <h3>Комментарии</h3>
+
+        <!-- Форма добавления комментария -->
+        {% if current_user.is_authenticated %}
+            <form method="POST" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form" id="comment-form-{{ post.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <textarea name="content" placeholder="Написать комментарий..." required></textarea>
+                <button type="submit" class="btn btn-sm">Отправить</button>
+            </form>
+        {% else %}
+            <p class="login-to-comment">
+                <a href="{{ url_for('login') }}">Войдите</a>, чтобы оставить комментарий.
+            </p>
+        {% endif %}
+
+        <!-- Список комментариев -->
+        <div class="comments-list" id="comments-{{ post.id }}">
+            {% if post.comments|length > 3 %}
+                <!-- Показываем только последние 3 комментария, остальные свернуты -->
+                <div class="comments-preview">
+                    {% for comment in post.comments[-3:] %}
+                        {% include '_comment.html' %}
+                    {% endfor %}
+                </div>
+                <button class="show-all-comments-btn" onclick="showAllComments({{ post.id }})">
+                    Развернуть все комментарии ({{ post.comments|length - 3 }} скрыто)
+                </button>
+                <div class="comments-all" id="all-comments-{{ post.id }}" style="display: none;">
+                    {% for comment in post.comments[:-3] %}
+                        {% include '_comment.html' %}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <!-- Если комментариев 3 или меньше, показываем все -->
+                {% for comment in post.comments %}
+                    {% include '_comment.html' %}
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Всплывающее окно подтверждения удаления -->
+<div id="delete-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeDeleteModal()">&times;</span>
+        <h3>Подтверждение удаления</h3>
+        <p>Вы уверены, что хотите удалить этот пост? Это действие нельзя отменить.</p>
+        <p>Будет удалено:</p>
+        <ul>
+            <li>Сам пост</li>
+            <li>Все комментарии к нему ({{ post.comments|length }})</li>
+            <li>Все вложения</li>
+        </ul>
+        <div class="modal-actions">
+            <button onclick="closeDeleteModal()" class="btn btn-sm">Отмена</button>
+            <form method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function likePost(button, postId) {
+    fetch(`/post/${postId}/like`, {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': '{{ csrf_token() }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        button.classList.toggle('liked', data.liked);
+        button.querySelector('.like-count').textContent = data.count;
+        document.getElementById(`like-count-${postId}`).textContent = data.count;
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function showAllComments(postId) {
+    document.getElementById(`all-comments-${postId}`).style.display = 'block';
+    document.querySelector('.show-all-comments-btn').style.display = 'none';
+}
+
+function confirmDelete(postId) {
+    document.getElementById('delete-modal').style.display = 'block';
+}
+
+function closeDeleteModal() {
+    document.getElementById('delete-modal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+    const modal = document.getElementById('delete-modal');
+    if (event.target == modal) {
+        modal.style.display = 'none';
+    }
+}
+</script>
+
+{% endblock %}

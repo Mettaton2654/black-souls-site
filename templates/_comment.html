@@ -1,0 +1,18 @@
+<div class="comment" id="comment-{{ comment.id }}">
+    <div class="comment-header">
+        <a href="{{ url_for('user_profile', user_id=comment.author.id) }}">
+            <img src="{{ avatar_url(comment.author) }}" alt="avatar" class="comment-avatar" onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar_i5bg2p.png'">
+        </a>
+        <a href="{{ url_for('user_profile', user_id=comment.author.id) }}" class="comment-author">{{ comment.author.username }}</a>
+        <span class="comment-date">{{ comment.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
+    </div>
+    <div class="comment-content">{{ comment.content }}</div>
+    {% if current_user.is_authenticated and (current_user.is_admin or current_user.id == comment.user_id) %}
+        <div class="comment-actions">
+            <form method="POST" action="{{ url_for('delete_comment', comment_id=comment.id) }}" onsubmit="return confirm('Удалить комментарий?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-danger">Удалить</button>
+            </form>
+        </div>
+    {% endif %}
+</div>
