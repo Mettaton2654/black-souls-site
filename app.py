@@ -2,6 +2,7 @@ import os
 import time
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import FlaskForm
@@ -140,6 +141,26 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
     print("✅ Таблицы созданы или уже существуют.")
+
+    # Если схема была обновлена (например, добавлена колонка sticker_id),
+    # убедимся, что таблица уже содержит нужные колонки.
+    # Это упрощённая миграция без использования Alembic.
+    if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+        try:
+            result = db.session.execute(text("PRAGMA table_info(post)")).fetchall()
+            existing_columns = {row[1] for row in result}
+            if 'sticker_id' not in existing_columns:
+                db.session.execute(text("ALTER TABLE post ADD COLUMN sticker_id INTEGER"))
+                db.session.commit()
+                print("✅ Добавлена колонка post.sticker_id в схему БД.")
+            if 'likes_count' not in existing_columns:
+                db.session.execute(text("ALTER TABLE post ADD COLUMN likes_count INTEGER DEFAULT 0"))
+                db.session.commit()
+                print("✅ Добавлена колонка post.likes_count в схему БД.")
+        except Exception as e:
+            db.session.rollback()
+            print(f"⚠️ Не удалось обновить схему базы данных: {e}")
+
     try:
         admin_exists = User.query.filter(
             (User.email == 'xanturi@mail.ru') | (User.username == 'admin')
@@ -572,8 +593,6 @@ def like_post(post_id):
     db.session.commit()
     return jsonify({'liked': liked, 'count': len(post.likes)})
 @app.context_processor
-@app.context_processor
-@app.context_processor
 def utility_processor():
     def avatar_url(user):
         from datetime import datetime
@@ -584,6 +603,12 @@ def utility_processor():
         base_url = url_for('static', filename='uploads/' + user.avatar)
         cache_buster = int(datetime.utcnow().timestamp())
         return f"{base_url}?v={cache_buster}"
-    return dict(avatar_url=avatar_url)
+
+    from datetime import datetime
+    return dict(
+        avatar_url=avatar_url,
+        current_year=datetime.utcnow().year
+    )
+
 if __name__ == '__main__':
     app.run(debug=True)

@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Database
+instance/
+*.db
+*.sqlite3
+
+# Environment
+venv/
+env/
+.env
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# System
+.DS_Store
+Thumbs.db
