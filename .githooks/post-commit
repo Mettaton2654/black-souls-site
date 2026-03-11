@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "🚀 Отправляю на GitHub..."
+git push
