@@ -333,6 +333,13 @@ def profile():
     
     form.username.data = current_user.username
     return render_template('profile.html', form=form)@app.route('/user/<int:user_id>')
+
+@app.route('/user/<int:user_id>')
+def user_profile(user_id):
+    """Профиль пользователя по ID"""
+    user = User.query.get_or_404(user_id)
+    posts = Post.query.filter_by(user_id=user.id).order_by(Post.date_posted.desc()).all()
+    return render_template('user_profile.html', user=user, posts=posts)
 def user_profile(user_id):
     user = User.query.get_or_404(user_id)
     posts = Post.query.filter_by(user_id=user.id).order_by(Post.date_posted.desc()).all()
