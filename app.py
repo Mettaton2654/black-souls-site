@@ -150,10 +150,6 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
     print("✅ Таблицы созданы или уже существуют.")
-
-    # Если схема была обновлена (например, добавлена колонка sticker_id),
-    # убедимся, что таблица уже содержит нужные колонки.
-    # Это упрощённая миграция без использования Alembic.
     if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
         try:
             result = db.session.execute(text("PRAGMA table_info(post)")).fetchall()
@@ -587,15 +583,18 @@ def like_post(post_id):
     db.session.commit()
     return jsonify({'liked': liked, 'count': len(post.likes)})
 @app.context_processor
-@app.context_processor
-@app.context_processor
 def utility_processor():
     def avatar_url(user):
-        """Возвращает прямую ссылку на аватар из Cloudinary"""
-        if user is None or not user.avatar:
+        # Максимально простой вариант
+        if user is None:
             return 'https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
-        return user.avatar
-
+        
+        if user.avatar:
+            # Просто возвращаем то, что в базе
+            return user.avatar
+        
+        return 'https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
+    
     return dict(avatar_url=avatar_url, current_year=datetime.utcnow().year)
 if __name__ == '__main__':
     app.run(debug=True)
