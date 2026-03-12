@@ -16,19 +16,25 @@ from werkzeug.utils import secure_filename
 import io
 from PIL import Image
 import base64
-# Cloudinary (опционально). Если модуль не установлен, загрузка будет идти на локальный диск.
 try:
     import cloudinary
     import cloudinary.uploader
     import cloudinary.api
 
-    cloudinary_enabled = True
-    cloudinary.config(
-        cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME', 'your_cloud_name'),
-        api_key=os.environ.get('CLOUDINARY_API_KEY', 'your_api_key'),
-        api_secret=os.environ.get('CLOUDINARY_API_SECRET', 'your_api_secret'),
-        secure=True
-    )
+    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME')
+    cloud_api_key = os.environ.get('CLOUDINARY_API_KEY')
+    cloud_api_secret = os.environ.get('CLOUDINARY_API_SECRET')
+
+    cloudinary_enabled = bool(cloud_name and cloud_api_key and cloud_api_secret)
+    if cloudinary_enabled:
+        cloudinary.config(
+            cloud_name=cloud_name,
+            api_key=cloud_api_key,
+            api_secret=cloud_api_secret,
+            secure=True
+        )
+    else:
+        cloudinary_enabled = False
 except ImportError:
     cloudinary_enabled = False
 
@@ -54,7 +60,10 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(200), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     can_post = db.Column(db.Boolean, default=False)
-    avatar = db.Column(db.String(300), default='https://res.cloudinary.com/your-cloud/image/upload/default_avatar.png')
+    avatar = db.Column(
+        db.String(300),
+        default='https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
+    )
     posts = db.relationship('Post', backref='author', lazy=True)
     comments = db.relationship('Comment', backref='author', lazy=True)
     messages_sent = db.relationship(
@@ -161,26 +170,6 @@ with app.app_context():
             db.session.rollback()
             print(f"⚠️ Не удалось обновить схему базы данных: {e}")
 
-    try:
-        admin_exists = User.query.filter(
-            (User.email == 'xanturi@mail.ru') | (User.username == 'admin')
-        ).first()
-        if not admin_exists:
-            admin = User(
-                username='admin',
-                email='xanturi@mail.ru',
-                is_admin=True,
-                can_post=True
-            )
-            admin.set_password('OBURTY3129')
-            db.session.add(admin)
-            db.session.commit()
-            print("✅ Администратор создан: xanturi@mail.ru")
-        else:
-            print("✅ Администратор уже существует.")
-    except Exception as e:
-        db.session.rollback()
-        print(f"⚠️ Ошибка при создании администратора: {e}")
 
     try:
         if Sticker.query.count() == 0:
@@ -529,11 +518,8 @@ def delete_attachment(attachment_id):
 @app.route('/messages')
 @login_required
 def messages():
-    # Получаем все сообщения для текущего пользователя
     received_messages = Message.query.filter_by(recipient_id=current_user.id).order_by(Message.timestamp.desc()).all()
     sent_messages = Message.query.filter_by(sender_id=current_user.id).order_by(Message.timestamp.desc()).all()
-    
-    # Отмечаем полученные сообщения как прочитанные
     for msg in received_messages:
         if not msg.is_read:
             msg.is_read = True
@@ -593,22 +579,18 @@ def like_post(post_id):
     db.session.commit()
     return jsonify({'liked': liked, 'count': len(post.likes)})
 @app.context_processor
+@app.context_processor
 def utility_processor():
     def avatar_url(user):
-        from datetime import datetime
         if user is None or user.avatar is None:
             return url_for('static', filename='uploads/default_avatar.png')
-        if user.avatar.startswith('http'):
+        if user.avatar.startswith(('http://', 'https://')):
             return user.avatar
-        base_url = url_for('static', filename='uploads/' + user.avatar)
-        cache_buster = int(datetime.utcnow().timestamp())
-        return f"{base_url}?v={cache_buster}"
+        if user.avatar.startswith('uploads/'):
+            return url_for('static', filename=user.avatar)
+        else:
+            return url_for('static', filename=f'uploads/{user.avatar}')
 
-    from datetime import datetime
-    return dict(
-        avatar_url=avatar_url,
-        current_year=datetime.utcnow().year
-    )
-
+    return dict(avatar_url=avatar_url, current_year=datetime.utcnow().year)
 if __name__ == '__main__':
     app.run(debug=True)
