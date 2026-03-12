@@ -770,6 +770,8 @@ small {
         top: 60px;
         left: 0;
         right: 0;
+        max-height: calc(100vh - 70px);
+        overflow-y: auto;
         background: rgba(10, 10, 10, 0.85);
         backdrop-filter: blur(10px);
         flex-direction: column;
@@ -828,6 +830,14 @@ small {
 
     .comment-form textarea {
         width: 100%;
+    }
+
+    .container {
+        padding: 0 16px;
+    }
+
+    .site-footer {
+        padding: 18px 10px;
     }
 }
 

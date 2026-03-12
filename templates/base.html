@@ -13,7 +13,7 @@
     <nav class="navbar">
         <div class="nav-container">
             <a href="{{ url_for('index') }}" class="logo">Individuality is not neccesary</a>
-            <button class="mobile-menu-btn" onclick="toggleMenu()">☰</button>
+            <button id="mobileMenuBtn" class="mobile-menu-btn" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="navMenu">☰</button>
             <ul class="nav-menu" id="navMenu">
                 {% if current_user.is_authenticated %}
                     {% if current_user.is_admin or current_user.can_post %}
@@ -53,14 +53,9 @@
         </div>
     </footer>
 
-    <script>
-        function toggleMenu() {
-            var menu = document.getElementById('navMenu');
-            menu.classList.toggle('active');
-        }
-    </script>
-    <script src="{{ url_for('static', filename='js/animations.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/likes.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/nav.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/animations.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/likes.js') }}" defer></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
