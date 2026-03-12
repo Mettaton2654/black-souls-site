@@ -4,9 +4,9 @@
 <div class="profile-header">
     <div class="profile-avatar-large">
     <img src="{{ avatar_url(current_user) }}" 
-         alt="avatar" 
-         id="avatar-preview"
-         onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar_i5bg2p.png'">
+     alt="avatar" 
+     class="avatar"
+     onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar_i5bg2p.png'">
 </div>
     <div class="profile-info">
         <h1>{{ user.username }}</h1>
