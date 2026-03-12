@@ -289,38 +289,30 @@ def profile():
         if form.username.data != current_user.username:
             current_user.username = form.username.data
 
-        # Обработка обрезанного аватара из JavaScript
+        # Обработка аватара из формы
         cropped_avatar = request.form.get('cropped_avatar')
         if cropped_avatar and cropped_avatar.startswith('data:image'):
             try:
-                # Декодируем base64 изображение
+                # Декодируем base64
                 image_data = cropped_avatar.split(',')[1]
                 image_binary = base64.b64decode(image_data)
                 
-                if cloudinary_enabled:
-                    # Загружаем в Cloudinary
-                    import cloudinary.uploader
-                    upload_result = cloudinary.uploader.upload(
-                        image_binary,
-                        folder="avatars",
-                        public_id=f"user_{current_user.id}",
-                        overwrite=True,
-                        transformation=[{'width': 300, 'height': 300, 'crop': 'fill'}]
-                    )
-                    current_user.avatar = upload_result['secure_url']
-                else:
-                    # Сохраняем локально
-                    filename = f"avatar_{current_user.id}.png"
-                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    
-                    with open(file_path, 'wb') as f:
-                        f.write(image_binary)
-                    
-                    current_user.avatar = filename
-                    
+                # Загружаем в Cloudinary
+                upload_result = cloudinary.uploader.upload(
+                    image_binary,
+                    folder="avatars",
+                    public_id=f"user_{current_user.id}",
+                    overwrite=True,
+                    transformation=[{'width': 300, 'height': 300, 'crop': 'fill'}]
+                )
+                
+                # Сохраняем ссылку
+                current_user.avatar = upload_result['secure_url']
+                
             except Exception as e:
-                flash(f'Ошибка при сохранении аватара: {str(e)}', 'danger')
+                flash(f'Ошибка при загрузке аватара: {str(e)}', 'danger')
 
+        # Смена пароля
         if form.old_password.data and form.new_password.data:
             if not current_user.check_password(form.old_password.data):
                 flash('Неверный старый пароль', 'danger')
@@ -332,8 +324,7 @@ def profile():
         return redirect(url_for('profile'))
     
     form.username.data = current_user.username
-    return render_template('profile.html', form=form)@app.route('/user/<int:user_id>')
-
+    return render_template('profile.html', form=form)
 @app.route('/user/<int:user_id>')
 def user_profile(user_id):
     """Профиль пользователя по ID"""
@@ -377,19 +368,26 @@ def upload_avatar():
         return jsonify({'success': False, 'error': 'No selected file'})
     
     try:
-        # Только Cloudinary, без локального сохранения
+        # Загружаем в Cloudinary
         upload_result = cloudinary.uploader.upload(
             file,
             folder="avatars",
             public_id=f"user_{current_user.id}",
             overwrite=True,
-            transformation=[{'width': 300, 'height': 300, 'crop': 'fill'}]
+            transformation=[
+                {'width': 300, 'height': 300, 'crop': 'fill'}
+            ]
         )
         
+        # Сохраняем прямую ссылку в базу
         current_user.avatar = upload_result['secure_url']
         db.session.commit()
         
-        return jsonify({'success': True, 'url': upload_result['secure_url']})
+        return jsonify({
+            'success': True, 
+            'url': upload_result['secure_url']
+        })
+        
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 @app.route('/admin/users', methods=['GET', 'POST'])
@@ -590,16 +588,13 @@ def like_post(post_id):
     return jsonify({'liked': liked, 'count': len(post.likes)})
 @app.context_processor
 @app.context_processor
+@app.context_processor
 def utility_processor():
     def avatar_url(user):
-        if user is None or user.avatar is None:
-            return url_for('static', filename='uploads/default_avatar.png')
-        if user.avatar.startswith(('http://', 'https://')):
-            return user.avatar
-        if user.avatar.startswith('uploads/'):
-            return url_for('static', filename=user.avatar)
-        else:
-            return url_for('static', filename=f'uploads/{user.avatar}')
+        """Возвращает прямую ссылку на аватар из Cloudinary"""
+        if user is None or not user.avatar:
+            return 'https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
+        return user.avatar
 
     return dict(avatar_url=avatar_url, current_year=datetime.utcnow().year)
 if __name__ == '__main__':
