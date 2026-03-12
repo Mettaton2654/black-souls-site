@@ -289,14 +289,37 @@ def profile():
         if form.username.data != current_user.username:
             current_user.username = form.username.data
 
-        if form.avatar.data and form.avatar.data.filename:
-            file = form.avatar.data
-            filename = secure_filename(file.filename)
-            ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-            new_filename = f"avatar_{current_user.id}.{ext}" if ext else f"avatar_{current_user.id}.jpg"
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
-            file.save(file_path)
-            current_user.avatar = new_filename
+        # Обработка обрезанного аватара из JavaScript
+        cropped_avatar = request.form.get('cropped_avatar')
+        if cropped_avatar and cropped_avatar.startswith('data:image'):
+            try:
+                # Декодируем base64 изображение
+                image_data = cropped_avatar.split(',')[1]
+                image_binary = base64.b64decode(image_data)
+                
+                if cloudinary_enabled:
+                    # Загружаем в Cloudinary
+                    import cloudinary.uploader
+                    upload_result = cloudinary.uploader.upload(
+                        image_binary,
+                        folder="avatars",
+                        public_id=f"user_{current_user.id}",
+                        overwrite=True,
+                        transformation=[{'width': 300, 'height': 300, 'crop': 'fill'}]
+                    )
+                    current_user.avatar = upload_result['secure_url']
+                else:
+                    # Сохраняем локально
+                    filename = f"avatar_{current_user.id}.png"
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    
+                    with open(file_path, 'wb') as f:
+                        f.write(image_binary)
+                    
+                    current_user.avatar = filename
+                    
+            except Exception as e:
+                flash(f'Ошибка при сохранении аватара: {str(e)}', 'danger')
 
         if form.old_password.data and form.new_password.data:
             if not current_user.check_password(form.old_password.data):
@@ -307,14 +330,9 @@ def profile():
         db.session.commit()
         flash('Профиль успешно обновлён', 'success')
         return redirect(url_for('profile'))
-    else:
-        if request.method == 'POST':
-            flash('Проверьте правильность заполнения формы', 'danger')
-
+    
     form.username.data = current_user.username
-    return render_template('profile.html', form=form)
-
-@app.route('/user/<int:user_id>')
+    return render_template('profile.html', form=form)@app.route('/user/<int:user_id>')
 def user_profile(user_id):
     user = User.query.get_or_404(user_id)
     posts = Post.query.filter_by(user_id=user.id).order_by(Post.date_posted.desc()).all()
@@ -346,42 +364,27 @@ def post_detail(post_id):
 def upload_avatar():
     if 'avatar' not in request.files:
         return jsonify({'success': False, 'error': 'No file part'})
+    
     file = request.files['avatar']
     if file.filename == '':
         return jsonify({'success': False, 'error': 'No selected file'})
     
-    if file:
-        try:
-            if cloudinary_enabled:
-                # Загружаем файл в Cloudinary
-                upload_result = cloudinary.uploader.upload(
-                    file,
-                    folder="avatars",          # папка в облаке
-                    public_id=f"user_{current_user.id}",  # уникальное имя
-                    overwrite=True,             # заменять при повторной загрузке
-                    transformation=[
-                        {'width': 300, 'height': 300, 'crop': 'fill'}  # сразу обрезаем до квадрата
-                    ]
-                )
-                avatar_url = upload_result['secure_url']
-            else:
-                # Сохраняем файл локально
-                filename = secure_filename(file.filename)
-                ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-                new_filename = f"avatar_{current_user.id}.{ext}" if ext else f"avatar_{current_user.id}.png"
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
-                file.save(file_path)
-                avatar_url = url_for('static', filename=f'uploads/{new_filename}')
-
-            # Сохраняем URL/путь в базу
-            current_user.avatar = avatar_url
-            db.session.commit()
-
-            return jsonify({'success': True, 'url': avatar_url})
-        except Exception as e:
-            return jsonify({'success': False, 'error': str(e)})
-
-    return jsonify({'success': False, 'error': 'Upload failed'})
+    try:
+        # Только Cloudinary, без локального сохранения
+        upload_result = cloudinary.uploader.upload(
+            file,
+            folder="avatars",
+            public_id=f"user_{current_user.id}",
+            overwrite=True,
+            transformation=[{'width': 300, 'height': 300, 'crop': 'fill'}]
+        )
+        
+        current_user.avatar = upload_result['secure_url']
+        db.session.commit()
+        
+        return jsonify({'success': True, 'url': upload_result['secure_url']})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 @app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
 def admin_users():
