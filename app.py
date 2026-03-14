@@ -519,16 +519,29 @@ def delete_attachment(attachment_id):
     flash('Вложение удалено', 'success')
     return redirect(url_for('edit_post', post_id=post.id))
 
+from sqlalchemy import or_
+
+
 @app.route('/messages')
 @login_required
 def messages():
-    received_messages = Message.query.filter_by(recipient_id=current_user.id).order_by(Message.timestamp.desc()).all()
-    sent_messages = Message.query.filter_by(sender_id=current_user.id).order_by(Message.timestamp.desc()).all()
+    # Fetch only messages where current user participates (as sender or recipient)
+    messages = Message.query.filter(
+        or_(
+            Message.recipient_id == current_user.id,
+            Message.sender_id == current_user.id,
+        )
+    ).order_by(Message.timestamp.desc()).all()
+
+    received_messages = [m for m in messages if m.recipient_id == current_user.id]
+    sent_messages = [m for m in messages if m.sender_id == current_user.id]
+
+    # Mark received messages as read
     for msg in received_messages:
         if not msg.is_read:
             msg.is_read = True
     db.session.commit()
-    
+
     return render_template('messages.html', received_messages=received_messages, sent_messages=sent_messages)
 
 @app.route('/messages/send', methods=['GET', 'POST'])
