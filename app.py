@@ -285,8 +285,11 @@ def register():
             flash('Код подтверждения отправлен на ваш email.', 'info')
             return redirect(url_for('verify'))
         except Exception as e:
-            app.logger.error(f"Ошибка отправки письма на {form.email.data}: {e}")
+            import traceback
+            app.logger.error(f"Ошибка отправки письма на {form.email.data}: {e}\n{traceback.format_exc()}")
             flash('Ошибка при отправке письма. Попробуйте позже.', 'danger')
+            session.pop('reg_data', None)
+            return redirect(url_for('register'))
 
     return render_template('register.html', form=form)
 @app.route('/verify', methods=['GET', 'POST'])
