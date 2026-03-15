@@ -85,14 +85,14 @@ class User(UserMixin, db.Model):
     posts = db.relationship('Post', backref='author', lazy=True)
     comments = db.relationship('Comment', backref='author', lazy=True)
     messages_sent = db.relationship(
-        'Message',
-        foreign_keys='Message.sender_id',
+        'PrivateMessage',
+        foreign_keys='PrivateMessage.sender_id',
         back_populates='sender',
         lazy='dynamic'
     )
     messages_received = db.relationship(
-        'Message',
-        foreign_keys='Message.recipient_id',
+        'PrivateMessage',
+        foreign_keys='PrivateMessage.recipient_id',
         back_populates='recipient',
         lazy='dynamic'
     )
@@ -134,7 +134,8 @@ class Like(db.Model):
     user = db.relationship('User', backref=db.backref('likes', lazy=True))
     post = db.relationship('Post', backref=db.backref('likes', lazy=True))
     
-class Message(db.Model):
+class PrivateMessage(db.Model):
+    __tablename__ = 'private_messages'   # явно зададим имя таблицы
     id = db.Column(db.Integer, primary_key=True)
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -142,16 +143,8 @@ class Message(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     is_read = db.Column(db.Boolean, default=False)
 
-    sender = db.relationship(
-        'User',
-        foreign_keys=[sender_id],
-        back_populates='messages_sent'
-    )
-    recipient = db.relationship(
-        'User',
-        foreign_keys=[recipient_id],
-        back_populates='messages_received'
-    )
+    sender = db.relationship('User', foreign_keys=[sender_id], back_populates='messages_sent')
+    recipient = db.relationship('User', foreign_keys=[recipient_id], back_populates='messages_received')
 class Sticker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -626,12 +619,12 @@ from sqlalchemy import or_
 @login_required
 def messages():
     # Fetch only messages where current user participates (as sender or recipient)
-    messages = Message.query.filter(
+    messages = PrivateMessage.query.filter(
         or_(
-            Message.recipient_id == current_user.id,
-            Message.sender_id == current_user.id,
+            PrivateMessage.recipient_id == current_user.id,
+            PrivateMessage.sender_id == current_user.id,
         )
-    ).order_by(Message.timestamp.desc()).all()
+    ).order_by(PrivateMessage.timestamp.desc()).all()
 
     received_messages = [m for m in messages if m.recipient_id == current_user.id]
     sent_messages = [m for m in messages if m.sender_id == current_user.id]
@@ -649,7 +642,7 @@ def messages():
 def send_message():
     form = MessageForm()
     if form.validate_on_submit():
-        message = Message(
+        message = PrivateMessage(
             sender_id=current_user.id,
             recipient_id=form.recipient.data,
             content=form.content.data
@@ -664,7 +657,7 @@ def send_message():
 @app.route('/messages/delete/<int:message_id>', methods=['POST'])
 @login_required
 def delete_message(message_id):
-    message = Message.query.get_or_404(message_id)
+    message = PrivateMessage.query.get_or_404(message_id)
     if message.sender_id != current_user.id and message.recipient_id != current_user.id:
         flash('У вас нет прав на удаление этого сообщения', 'danger')
         return redirect(url_for('messages'))
