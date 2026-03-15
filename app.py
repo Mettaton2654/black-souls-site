@@ -64,7 +64,7 @@ login_manager.login_view = 'login'
 
 csrf = CSRFProtect(app)
 VERIFICATION_CODE_EXPIRE_MINUTES = 10
-def check_smtp_connection(host='smtp.gmail.com', port=587):
+def check_smtp_connection(host='smtp.yandex.ru', port=587):
     try:
         with socket.create_connection((host, port), timeout=10):
             app.logger.info(f"✅ Successfully connected to {host}:{port}")
