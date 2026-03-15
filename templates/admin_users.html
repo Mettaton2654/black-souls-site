@@ -18,8 +18,20 @@
             <td>{{ user.id }}</td>
             <td><a href="{{ url_for('user_profile', user_id=user.id) }}">{{ user.username }}</a></td>
             <td>{{ user.email }}</td>
-            <td>{% if user.is_admin %}✅{% endif %}</td>
-            <td>{% if user.can_post %}✅{% endif %}</td>
+            <td>
+    {% if user.is_admin %}
+        <img src="{{ url_for('static', filename='icons/YES.png') }}" 
+             alt="Да" 
+             class="icon-table">
+    {% endif %}
+</td>
+<td>
+    {% if user.can_post %}
+        <img src="{{ url_for('static', filename='icons/YES.png') }}" 
+             alt="Да" 
+             class="icon-table">
+    {% endif %}
+</td>
             <td>
                 {% if not user.is_admin %}
                     <form method="POST" style="display:inline;">
