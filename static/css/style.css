@@ -91,6 +91,9 @@ a:focus-visible {
 }
 
 .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
     font-size: 24px;
     font-weight: 800;
     color: var(--accent);
@@ -99,11 +102,15 @@ a:focus-visible {
     animation: flicker 2s infinite;
     text-shadow: 0 0 10px rgba(179, 0, 0, 0.7);
 }
+
 .logo-img {
-    height: 1.5em;
+    height: 2em; 
     width: auto;
-    vertical-align: middle;
-    margin-right: 8px;  
+
+}
+
+.logo-text {
+
 }
 
 @keyframes flicker {
