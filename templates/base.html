@@ -25,7 +25,10 @@
 <body>
     <nav class="navbar">
         <div class="nav-container">
-            <a href="{{ url_for('index') }}" class="logo">Individuality is not neccesary</a>
+            <a href="{{ url_for('index') }}" class="logo">
+    <img src="{{ url_for('static', filename='favicon/favicon.svg') }}" alt="Logo" class="logo-img">
+    Individuality is not neccesary
+</a>
             <button id="mobileMenuBtn" class="mobile-menu-btn" type="button" aria-label="Открыть меню" aria-expanded="false" aria-controls="navMenu">☰</button>
             <ul class="nav-menu" id="navMenu">
                 {% if current_user.is_authenticated %}

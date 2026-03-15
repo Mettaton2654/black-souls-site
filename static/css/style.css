@@ -99,6 +99,12 @@ a:focus-visible {
     animation: flicker 2s infinite;
     text-shadow: 0 0 10px rgba(179, 0, 0, 0.7);
 }
+.logo-img {
+    height: 1.5em;
+    width: auto;
+    vertical-align: middle;
+    margin-right: 8px;  
+}
 
 @keyframes flicker {
     0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
