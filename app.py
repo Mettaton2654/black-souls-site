@@ -478,6 +478,9 @@ def delete_post(post_id):
         flash('У вас нет прав на удаление этого поста', 'danger')
         return redirect(url_for('index'))
 
+    # Удаляем все лайки этого поста
+    Like.query.filter_by(post_id=post.id).delete()
+
     for att in post.attachments:
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], att.file_url)
         if os.path.exists(file_path):
