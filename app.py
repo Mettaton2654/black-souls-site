@@ -509,6 +509,17 @@ def admin_users():
     users = User.query.all()
     return render_template('admin_users.html', users=users)
 
+@app.route('/debug-smtp')
+def debug_smtp():
+    import socket
+    results = {}
+    for port in [587, 465, 25, 2525]:
+        try:
+            with socket.create_connection(('smtp.gmail.com', port), timeout=5):
+                results[port] = '✅ Доступен'
+        except Exception as e:
+            results[port] = f'❌ Ошибка: {e}'
+    return str(results)
 @app.route('/create', methods=['GET', 'POST'])
 @login_required
 def create_post():
