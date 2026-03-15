@@ -55,39 +55,39 @@ cropBtn.onclick = () => {
     });
 
     canvas.toBlob((blob) => {
-    const formData = new FormData();
-    formData.append('avatar', blob, 'avatar.png');
-    
-    // Добавляем CSRF-токен как поле формы (самый надёжный способ)
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    formData.append('csrf_token', csrfToken);
+        const formData = new FormData();
+        formData.append('avatar', blob, 'avatar.png');
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        formData.append('csrf_token', csrfToken);
 
-    fetch('/upload-avatar', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Ошибка при загрузке: ' + (data.error || 'Неизвестная ошибка'));
-        }
-    })
-    .catch(error => {
-        console.error('Fetch error:', error);
-        alert('Ошибка сети: ' + error.message);
-    })
-    .finally(() => {
-        modal.style.display = 'none';
-        if (cropper) cropper.destroy();
-    });
-}, 'image/png');
+        fetch('/upload-avatar', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Ошибка при загрузке: ' + (data.error || 'Неизвестная ошибка'));
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            alert('Ошибка сети: ' + error.message);
+        })
+        .finally(() => {
+            modal.style.display = 'none';
+            if (cropper) cropper.destroy();
+        });
+    }, 'image/png');
+};  // <--- Этой скобки не хватало
 
 window.onclick = (event) => {
     if (event.target == modal) {
