@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Подтверждение email</h1>
+<p>На адрес <strong>{{ email }}</strong> отправлен код подтверждения. Введите его ниже.</p>
+<form method="POST">
+    <div class="form-group">
+        <label for="code">Код подтверждения</label>
+        <input type="text" class="form-control" id="code" name="code" required autocomplete="off">
+    </div>
+    <button type="submit" class="btn btn-primary">Подтвердить</button>
+</form>
+<hr>
+<p><a href="{{ url_for('resend_code') }}">Отправить код повторно</a></p>
+{% endblock %}

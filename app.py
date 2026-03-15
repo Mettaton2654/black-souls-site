@@ -1,7 +1,8 @@
 import os
 import time
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
+from flask_mail import Mail, Message
 from sqlalchemy import text
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -13,6 +14,9 @@ from datetime import datetime
 from flask_wtf.file import FileField, FileAllowed, MultipleFileField
 from wtforms import ValidationError
 from werkzeug.utils import secure_filename
+import random
+import string
+from datetime import datetime, timedelta
 import io
 from PIL import Image
 import base64
@@ -44,7 +48,13 @@ app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', app.config['MAIL_USERNAME'])
+mail = Mail(app)
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
@@ -52,7 +62,15 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 csrf = CSRFProtect(app)
+VERIFICATION_CODE_EXPIRE_MINUTES = 10
+def generate_verification_code(length=6):
+    return ''.join(random.choices(string.digits, k=length))
 
+def send_verification_email(recipient, code):
+    msg = Message('Код подтверждения регистрации',
+                  recipients=[recipient])
+    msg.body = f'Ваш код подтверждения: {code}\n\nКод действителен {VERIFICATION_CODE_EXPIRE_MINUTES} минут.'
+    mail.send(msg)
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -241,20 +259,97 @@ def index():
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
+
     form = RegistrationForm()
     if form.validate_on_submit():
-        user = User.query.filter_by(email=form.email.data).first()
-        if user:
+        # Проверяем, не занят ли email
+        existing_user = User.query.filter_by(email=form.email.data).first()
+        if existing_user:
             flash('Email уже зарегистрирован', 'danger')
             return redirect(url_for('register'))
-        hashed_password = generate_password_hash(form.password.data)
-        user = User(username=form.username.data, email=form.email.data, password_hash=hashed_password)
-        db.session.add(user)
-        db.session.commit()
-        flash('Вы успешно зарегистрировались! Теперь войдите.', 'success')
-        return redirect(url_for('login'))
-    return render_template('register.html', form=form)
 
+        # Генерируем код подтверждения
+        code = generate_verification_code()
+        # Сохраняем данные в сессию (пароль сразу хешируем)
+        session['reg_data'] = {
+            'username': form.username.data,
+            'email': form.email.data,
+            'password_hash': generate_password_hash(form.password.data),
+            'code': code,
+            'code_time': datetime.utcnow().isoformat()
+        }
+
+        # Отправляем письмо
+        try:
+            send_verification_email(form.email.data, code)
+            flash('Код подтверждения отправлен на ваш email.', 'info')
+            return redirect(url_for('verify'))
+        except Exception as e:
+            flash('Ошибка при отправке письма. Попробуйте позже.', 'danger')
+            session.pop('reg_data', None)
+            return redirect(url_for('register'))
+
+    return render_template('register.html', form=form)
+@app.route('/verify', methods=['GET', 'POST'])
+def verify():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+
+    reg_data = session.get('reg_data')
+    if not reg_data:
+        flash('Сессия истекла. Начните регистрацию заново.', 'warning')
+        return redirect(url_for('register'))
+
+    if request.method == 'POST':
+        user_code = request.form.get('code', '').strip()
+        stored_code = reg_data['code']
+        code_time = datetime.fromisoformat(reg_data['code_time'])
+
+        # Проверка срока действия
+        if datetime.utcnow() - code_time > timedelta(minutes=VERIFICATION_CODE_EXPIRE_MINUTES):
+            flash('Код устарел. Запросите новый.', 'danger')
+            session.pop('reg_data', None)
+            return redirect(url_for('register'))
+
+        if user_code == stored_code:
+            # Создаём пользователя
+            user = User(
+                username=reg_data['username'],
+                email=reg_data['email'],
+                password_hash=reg_data['password_hash']
+            )
+            db.session.add(user)
+            db.session.commit()
+
+            session.pop('reg_data', None)
+            login_user(user)   # автоматический вход после подтверждения
+            flash('Регистрация успешно завершена!', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('Неверный код подтверждения.', 'danger')
+            return redirect(url_for('verify'))
+
+    # GET — показываем форму ввода кода
+    return render_template('verify.html', email=reg_data['email'])
+@app.route('/resend-code')
+def resend_code():
+    reg_data = session.get('reg_data')
+    if not reg_data:
+        flash('Нет активной регистрации.', 'warning')
+        return redirect(url_for('register'))
+
+    new_code = generate_verification_code()
+    reg_data['code'] = new_code
+    reg_data['code_time'] = datetime.utcnow().isoformat()
+    session['reg_data'] = reg_data
+
+    try:
+        send_verification_email(reg_data['email'], new_code)
+        flash('Новый код отправлен.', 'info')
+    except Exception as e:
+        flash('Ошибка отправки. Попробуйте позже.', 'danger')
+
+    return redirect(url_for('verify'))
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
