@@ -1,5 +1,6 @@
 import os
 import time
+import socket
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
@@ -63,6 +64,14 @@ login_manager.login_view = 'login'
 
 csrf = CSRFProtect(app)
 VERIFICATION_CODE_EXPIRE_MINUTES = 10
+def check_smtp_connection(host='smtp.gmail.com', port=587):
+    try:
+        with socket.create_connection((host, port), timeout=10):
+            app.logger.info(f"✅ Successfully connected to {host}:{port}")
+            return True
+    except Exception as e:
+        app.logger.error(f"❌ Cannot connect to {host}:{port}: {e}")
+        return False
 def generate_verification_code(length=6):
     return ''.join(random.choices(string.digits, k=length))
 
@@ -70,6 +79,7 @@ def send_verification_email(recipient, code):
     msg = Message('Код подтверждения регистрации',
                   recipients=[recipient])
     msg.body = f'Ваш код подтверждения: {code}\n\nКод действителен {VERIFICATION_CODE_EXPIRE_MINUTES} минут.'
+    check_smtp_connection()  # Проверяем соединение перед отправкой
     mail.send(msg)
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
