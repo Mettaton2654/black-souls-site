@@ -456,36 +456,31 @@ def post_detail(post_id):
 @app.route('/upload-avatar', methods=['POST'])
 @login_required
 def upload_avatar():
-    if 'avatar' not in request.files:
-        return jsonify({'success': False, 'error': 'No file part'})
-    
-    file = request.files['avatar']
-    if file.filename == '':
-        return jsonify({'success': False, 'error': 'No selected file'})
-    
     try:
-        # Загружаем в Cloudinary
+        if 'avatar' not in request.files:
+            return jsonify({'success': False, 'error': 'Файл не найден'}), 400
+
+        file = request.files['avatar']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'Файл не выбран'}), 400
+
+        # Ваша загрузка в Cloudinary
         upload_result = cloudinary.uploader.upload(
             file,
             folder="avatars",
             public_id=f"user_{current_user.id}",
             overwrite=True,
-            transformation=[
-                {'width': 300, 'height': 300, 'crop': 'fill'}
-            ]
+            transformation=[{'width': 300, 'height': 300, 'crop': 'fill'}]
         )
-        
-        # Сохраняем прямую ссылку в базу
+
         current_user.avatar = upload_result['secure_url']
         db.session.commit()
-        
-        return jsonify({
-            'success': True, 
-            'url': upload_result['secure_url']
-        })
-        
+
+        return jsonify({'success': True, 'url': upload_result['secure_url']})
+
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        app.logger.error(f"Avatar upload error: {e}")
+        return jsonify({'success': False, 'error': 'Внутренняя ошибка сервера'}), 500
 @app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
 def admin_users():
