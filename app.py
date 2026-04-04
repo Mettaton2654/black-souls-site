@@ -194,30 +194,6 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
     print("✅ Таблицы созданы или уже существуют в Supabase.")
-
-    admin_email = "save2654@mail.ru"    # поменяйте на свой email
-    admin_username = "save2654"              # поменяйте на свой логин
-    admin_password = "EastOrWest7525"           # поменяйте на сложный пароль
-
-    admin = User.query.filter_by(email=admin_email).first()
-    if not admin:
-        admin = User(
-            username=admin_username,
-            email=admin_email,
-            is_admin=True,
-            can_post=True
-        )
-        admin.set_password(admin_password)
-        db.session.add(admin)
-        db.session.commit()
-        print(f"✅ Администратор создан: {admin_username} / {admin_email} / пароль: {admin_password}")
-    else:
-        # Если пользователь существует, но не админ — делаем админом
-        if not admin.is_admin:
-            admin.is_admin = True
-            admin.can_post = True
-            db.session.commit()
-            print(f"✅ Пользователь {admin.email} повышен до администратора")
     try:
         if Sticker.query.count() == 0:
             stickers = [
