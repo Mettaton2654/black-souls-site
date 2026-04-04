@@ -674,11 +674,7 @@ def search():
         posts = []
     return render_template('search_results.html', posts=posts, query=query)
 @app.route('/download-db')
-@login_required
 def download_db():
-    if not current_user.is_admin:
-        flash('Доступ запрещён', 'danger')
-        return redirect(url_for('index'))
     import sqlite3
     import io
     # Путь к вашему SQLite-файлу на Render
