@@ -195,9 +195,9 @@ with app.app_context():
     db.create_all()
     print("✅ Таблицы созданы или уже существуют в Supabase.")
 
-    admin_email = "admin@example.com"    # поменяйте на свой email
-    admin_username = "admin"              # поменяйте на свой логин
-    admin_password = "admin123"           # поменяйте на сложный пароль
+    admin_email = "save2654@mail.ru"    # поменяйте на свой email
+    admin_username = "save2654"              # поменяйте на свой логин
+    admin_password = "EastOrWest7525"           # поменяйте на сложный пароль
 
     admin = User.query.filter_by(email=admin_email).first()
     if not admin:
