@@ -21,6 +21,8 @@ from datetime import datetime, timedelta
 import io
 from PIL import Image
 import base64
+import resend
+
 try:
     import cloudinary
     import cloudinary.uploader
@@ -75,58 +77,35 @@ csrf = CSRFProtect(app)
 
 VERIFICATION_CODE_EXPIRE_MINUTES = 10
 
-def check_smtp_connection(host='smtp.yandex.ru', port=587):
+def check_smtp_connection():
+    host = app.config['MAIL_SERVER']
+    port = app.config['MAIL_PORT']
     try:
         with socket.create_connection((host, port), timeout=10):
-            app.logger.info(f"✅ Successfully connected to {host}:{port}")
+            app.logger.info(f"✅ SMTP доступен {host}:{port}")
             return True
     except Exception as e:
-        app.logger.error(f"❌ Cannot connect to {host}:{port}: {e}")
+        app.logger.error(f"❌ SMTP недоступен {host}:{port}: {e}")
         return False
 
 def generate_verification_code(length=6):
     return ''.join(random.choices(string.digits, k=length))
 
 def send_verification_email(recipient, code):
-    msg = Message('Код подтверждения регистрации', recipients=[recipient])
-    msg.body = f'Ваш код подтверждения: {code}\n\nКод действителен {VERIFICATION_CODE_EXPIRE_MINUTES} минут.'
-    check_smtp_connection()
-    mail.send(msg)
-
-# --- Модели с явными именами таблиц (для PostgreSQL) ---
-class User(UserMixin, db.Model):
-    __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(200), nullable=False)
-    is_admin = db.Column(db.Boolean, default=False)
-    can_post = db.Column(db.Boolean, default=False)
-    avatar = db.Column(
-        db.String(300),
-        default='https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
-    )
-    posts = db.relationship('Post', backref='author', lazy=True)
-    comments = db.relationship('Comment', backref='author', lazy=True)
-    messages_sent = db.relationship(
-        'PrivateMessage',
-        foreign_keys='PrivateMessage.sender_id',
-        back_populates='sender',
-        lazy='dynamic'
-    )
-    messages_received = db.relationship(
-        'PrivateMessage',
-        foreign_keys='PrivateMessage.recipient_id',
-        back_populates='recipient',
-        lazy='dynamic'
-    )
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
+    """Отправляет код подтверждения через Resend."""
+    resend.api_key = os.environ.get("RESEND_API_KEY")
+    try:
+        resend.Emails.send({
+            "from": "noreply@iltp05-10corp.ru",
+            "to": recipient,
+            "subject": "Код подтверждения регистрации",
+            "html": f"<strong>Ваш код подтверждения: {code}</strong><br>Код действителен {VERIFICATION_CODE_EXPIRE_MINUTES} минут.",
+            "text": f"Ваш код подтверждения: {code}. Код действителен {VERIFICATION_CODE_EXPIRE_MINUTES} минут."
+        })
+        app.logger.info(f"Код {code} отправлен на {recipient} через Resend")
+    except Exception as e:
+        app.logger.error(f"Ошибка отправки через Resend: {e}")
+        raise e
 class Post(db.Model):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)
@@ -194,6 +173,7 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
     print("✅ Таблицы созданы или уже существуют в Supabase.")
+
     try:
         if Sticker.query.count() == 0:
             stickers = [
