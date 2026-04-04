@@ -106,6 +106,39 @@ def send_verification_email(recipient, code):
     except Exception as e:
         app.logger.error(f"Ошибка отправки через Resend: {e}")
         raise e
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+    can_post = db.Column(db.Boolean, default=False)
+    avatar = db.Column(
+        db.String(300),
+        default='https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
+    )
+    posts = db.relationship('Post', backref='author', lazy=True)
+    comments = db.relationship('Comment', backref='author', lazy=True)
+    messages_sent = db.relationship(
+        'PrivateMessage',
+        foreign_keys='PrivateMessage.sender_id',
+        back_populates='sender',
+        lazy='dynamic'
+    )
+    messages_received = db.relationship(
+        'PrivateMessage',
+        foreign_keys='PrivateMessage.recipient_id',
+        back_populates='recipient',
+        lazy='dynamic'
+    )
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
 class Post(db.Model):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)
