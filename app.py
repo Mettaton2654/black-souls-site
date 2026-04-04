@@ -673,18 +673,24 @@ def search():
     else:
         posts = []
     return render_template('search_results.html', posts=posts, query=query)
-@app.route('/download-db')
-def download_db():
-    import sqlite3
-    import io
-    # Путь к вашему SQLite-файлу на Render
-    db_path = os.path.join(app.root_path, 'site.db')  # или '/opt/render/project/src/site.db'
-    if os.path.exists(db_path):
-        with open(db_path, 'rb') as f:
-            return send_file(io.BytesIO(f.read()), as_attachment=True, download_name='site.db')
-    else:
-        flash('Файл базы данных не найден', 'danger')
-        return redirect(url_for('index'))
+@app.route('/make-admin')
+def make_admin():
+    # Секретный ключ для защиты (придумайте свой)
+    secret = request.args.get('secret')
+    if secret != 'my_super_secret_123':
+        return 'Доступ запрещён', 403
+    
+    email = request.args.get('email')
+    if not email:
+        return 'Укажите email параметром ?email=user@example.com', 400
+    
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return f'Пользователь с email {email} не найден', 404
+    
+    user.is_admin = True
+    db.session.commit()
+    return f'Пользователь {user.username} (email {email}) теперь администратор!'
 @app.route('/post/<int:post_id>/like', methods=['POST'])
 @login_required
 def like_post(post_id):
