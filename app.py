@@ -47,23 +47,34 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key-change-me')
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
+
+# --- Настройка базы данных (Supabase / PostgreSQL) ---
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
+# Автоматически добавляем sslmode=require для PostgreSQL, если его нет
+if database_url.startswith('postgresql'):
+    if 'sslmode' not in database_url:
+        database_url += '?sslmode=require'
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# --- Настройка почты ---
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True').lower() == 'true'
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', app.config['MAIL_USERNAME'])
+
 mail = Mail(app)
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-
 csrf = CSRFProtect(app)
+
 VERIFICATION_CODE_EXPIRE_MINUTES = 10
+
 def check_smtp_connection(host='smtp.yandex.ru', port=587):
     try:
         with socket.create_connection((host, port), timeout=10):
@@ -72,16 +83,19 @@ def check_smtp_connection(host='smtp.yandex.ru', port=587):
     except Exception as e:
         app.logger.error(f"❌ Cannot connect to {host}:{port}: {e}")
         return False
+
 def generate_verification_code(length=6):
     return ''.join(random.choices(string.digits, k=length))
 
 def send_verification_email(recipient, code):
-    msg = Message('Код подтверждения регистрации',
-                  recipients=[recipient])
+    msg = Message('Код подтверждения регистрации', recipients=[recipient])
     msg.body = f'Ваш код подтверждения: {code}\n\nКод действителен {VERIFICATION_CODE_EXPIRE_MINUTES} минут.'
-    check_smtp_connection()  # Проверяем соединение перед отправкой
+    check_smtp_connection()
     mail.send(msg)
+
+# --- Модели с явными именами таблиц (для PostgreSQL) ---
 class User(UserMixin, db.Model):
+    __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -114,48 +128,55 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
 class Post(db.Model):
+    __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     attachments = db.relationship('Attachment', backref='post', lazy=True, cascade='all, delete-orphan')
     comments = db.relationship('Comment', backref='post', lazy=True, cascade='all, delete-orphan')
-    sticker_id = db.Column(db.Integer, db.ForeignKey('sticker.id'), nullable=True)
+    sticker_id = db.Column(db.Integer, db.ForeignKey('stickers.id'), nullable=True)
     likes_count = db.Column(db.Integer, default=0)
 
 class Attachment(db.Model):
+    __tablename__ = 'attachments'
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(200), nullable=False)
     file_url = db.Column(db.String(300), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
 
 class Comment(db.Model):
+    __tablename__ = 'comments'
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
+
 class Like(db.Model):
+    __tablename__ = 'likes'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
     __table_args__ = (db.UniqueConstraint('user_id', 'post_id', name='unique_user_post_like'),)
 
     user = db.relationship('User', backref=db.backref('likes', lazy=True))
     post = db.relationship('Post', backref=db.backref('likes', lazy=True))
-    
+
 class PrivateMessage(db.Model):
-    __tablename__ = 'private_messages'   # явно зададим имя таблицы
+    __tablename__ = 'private_messages'
     id = db.Column(db.Integer, primary_key=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     is_read = db.Column(db.Boolean, default=False)
 
     sender = db.relationship('User', foreign_keys=[sender_id], back_populates='messages_sent')
     recipient = db.relationship('User', foreign_keys=[recipient_id], back_populates='messages_received')
+
 class Sticker(db.Model):
+    __tablename__ = 'stickers'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     image_file = db.Column(db.String(200), nullable=False)
@@ -164,30 +185,17 @@ class Sticker(db.Model):
     def __repr__(self):
         return f'<Sticker {self.name}>'
 
+# --- Загрузка пользователя ---
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# --- Создание таблиц и начальных данных ---
 with app.app_context():
     db.create_all()
-    print("✅ Таблицы созданы или уже существуют.")
-    if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
-        try:
-            result = db.session.execute(text("PRAGMA table_info(post)")).fetchall()
-            existing_columns = {row[1] for row in result}
-            if 'sticker_id' not in existing_columns:
-                db.session.execute(text("ALTER TABLE post ADD COLUMN sticker_id INTEGER"))
-                db.session.commit()
-                print("✅ Добавлена колонка post.sticker_id в схему БД.")
-            if 'likes_count' not in existing_columns:
-                db.session.execute(text("ALTER TABLE post ADD COLUMN likes_count INTEGER DEFAULT 0"))
-                db.session.commit()
-                print("✅ Добавлена колонка post.likes_count в схему БД.")
-        except Exception as e:
-            db.session.rollback()
-            print(f"⚠️ Не удалось обновить схему базы данных: {e}")
+    print("✅ Таблицы созданы или уже существуют в Supabase.")
 
-
+    # Добавляем стартовые стикеры, если таблица пуста
     try:
         if Sticker.query.count() == 0:
             stickers = [
@@ -205,12 +213,15 @@ with app.app_context():
     except Exception as e:
         db.session.rollback()
         print(f"⚠️ Ошибка при создании стикеров: {e}")
+
+# --- Формы ---
 class RegistrationForm(FlaskForm):
     username = StringField('Имя пользователя', validators=[DataRequired(), Length(min=2, max=20)])
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Пароль', validators=[DataRequired()])
     confirm_password = PasswordField('Подтвердите пароль', validators=[DataRequired(), EqualTo('password')])
     submit = SubmitField('Зарегистрироваться')
+
 class LoginForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email()])
     password = PasswordField('Пароль', validators=[DataRequired()])
@@ -249,6 +260,8 @@ class MessageForm(FlaskForm):
     def __init__(self, *args, **kwargs):
         super(MessageForm, self).__init__(*args, **kwargs)
         self.recipient.choices = [(u.id, u.username) for u in User.query.filter(User.id != current_user.id).all()]
+
+# --- Маршруты (без изменений, кроме удалённого SQLite-специфичного кода) ---
 @app.route('/')
 def index():
     posts = Post.query.order_by(Post.date_posted.desc()).all()
@@ -286,6 +299,7 @@ def register():
             return redirect(url_for('register'))
 
     return render_template('register.html', form=form)
+
 @app.route('/verify', methods=['GET', 'POST'])
 def verify():
     if current_user.is_authenticated:
@@ -313,15 +327,15 @@ def verify():
             )
             db.session.add(user)
             db.session.commit()
-
             session.pop('reg_data', None)
-            login_user(user)   # автоматический вход после подтверждения
+            login_user(user)
             flash('Регистрация успешно завершена!', 'success')
             return redirect(url_for('index'))
         else:
             flash('Неверный код подтверждения.', 'danger')
             return redirect(url_for('verify'))
     return render_template('verify.html', email=reg_data['email'])
+
 @app.route('/resend-code')
 def resend_code():
     reg_data = session.get('reg_data')
@@ -341,6 +355,7 @@ def resend_code():
         flash('Ошибка отправки. Попробуйте позже.', 'danger')
 
     return redirect(url_for('verify'))
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -383,7 +398,6 @@ def profile():
                     transformation=[{'width': 300, 'height': 300, 'crop': 'fill'}]
                 )
                 current_user.avatar = upload_result['secure_url']
-                
             except Exception as e:
                 flash(f'Ошибка при загрузке аватара: {str(e)}', 'danger')
         if form.old_password.data and form.new_password.data:
@@ -395,15 +409,11 @@ def profile():
         db.session.commit()
         flash('Профиль успешно обновлён', 'success')
         return redirect(url_for('profile'))
-    
+
     form.username.data = current_user.username
     return render_template('profile.html', form=form)
+
 @app.route('/user/<int:user_id>')
-def user_profile(user_id):
-    """Профиль пользователя по ID"""
-    user = User.query.get_or_404(user_id)
-    posts = Post.query.filter_by(user_id=user.id).order_by(Post.date_posted.desc()).all()
-    return render_template('user_profile.html', user=user, posts=posts)
 def user_profile(user_id):
     user = User.query.get_or_404(user_id)
     posts = Post.query.filter_by(user_id=user.id).order_by(Post.date_posted.desc()).all()
@@ -441,7 +451,6 @@ def upload_avatar():
         if file.filename == '':
             return jsonify({'success': False, 'error': 'Файл не выбран'}), 400
 
-        # Ваша загрузка в Cloudinary
         upload_result = cloudinary.uploader.upload(
             file,
             folder="avatars",
@@ -458,6 +467,7 @@ def upload_avatar():
     except Exception as e:
         app.logger.error(f"Avatar upload error: {e}")
         return jsonify({'success': False, 'error': 'Внутренняя ошибка сервера'}), 500
+
 @app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
 def admin_users():
@@ -492,6 +502,7 @@ def debug_smtp():
         except Exception as e:
             results[port] = f'❌ Ошибка: {e}'
     return str(results)
+
 @app.route('/create', methods=['GET', 'POST'])
 @login_required
 def create_post():
@@ -510,7 +521,6 @@ def create_post():
             for file in form.files.data:
                 if file and file.filename:
                     filename = secure_filename(file.filename)
-                    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
                     new_filename = f"post_{post.id}_{int(time.time())}_{filename}"
                     file_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
                     file.save(file_path)
@@ -540,7 +550,6 @@ def edit_post(post_id):
             for file in form.files.data:
                 if file and file.filename:
                     filename = secure_filename(file.filename)
-                    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
                     new_filename = f"post_{post.id}_{int(time.time())}_{filename}"
                     file_path = os.path.join(app.config['UPLOAD_FOLDER'], new_filename)
                     file.save(file_path)
@@ -560,6 +569,7 @@ def delete_post(post_id):
     if not (current_user.is_admin or current_user.id == post.user_id):
         flash('У вас нет прав на удаление этого поста', 'danger')
         return redirect(url_for('index'))
+
     Like.query.filter_by(post_id=post.id).delete()
 
     for att in post.attachments:
@@ -605,11 +615,9 @@ def delete_attachment(attachment_id):
 
 from sqlalchemy import or_
 
-
 @app.route('/messages')
 @login_required
 def messages():
-    # Fetch only messages where current user participates (as sender or recipient)
     messages = PrivateMessage.query.filter(
         or_(
             PrivateMessage.recipient_id == current_user.id,
@@ -620,7 +628,6 @@ def messages():
     received_messages = [m for m in messages if m.recipient_id == current_user.id]
     sent_messages = [m for m in messages if m.sender_id == current_user.id]
 
-    # Mark received messages as read
     for msg in received_messages:
         if not msg.is_read:
             msg.is_read = True
@@ -642,7 +649,7 @@ def send_message():
         db.session.commit()
         flash('Сообщение отправлено', 'success')
         return redirect(url_for('messages'))
-    
+
     return render_template('send_message.html', form=form)
 
 @app.route('/messages/delete/<int:message_id>', methods=['POST'])
@@ -652,11 +659,12 @@ def delete_message(message_id):
     if message.sender_id != current_user.id and message.recipient_id != current_user.id:
         flash('У вас нет прав на удаление этого сообщения', 'danger')
         return redirect(url_for('messages'))
-    
+
     db.session.delete(message)
     db.session.commit()
     flash('Сообщение удалено', 'success')
     return redirect(url_for('messages'))
+
 @app.route('/search')
 def search():
     query = request.args.get('q', '')
@@ -665,6 +673,7 @@ def search():
     else:
         posts = []
     return render_template('search_results.html', posts=posts, query=query)
+
 @app.route('/post/<int:post_id>/like', methods=['POST'])
 @login_required
 def like_post(post_id):
@@ -678,18 +687,21 @@ def like_post(post_id):
         db.session.add(like)
         liked = True
     db.session.commit()
-    return jsonify({'liked': liked, 'count': len(post.likes)})
+    # Обновляем likes_count в модели (опционально)
+    post.likes_count = len(post.likes)
+    db.session.commit()
+    return jsonify({'liked': liked, 'count': post.likes_count})
+
 @app.context_processor
 def utility_processor():
     def avatar_url(user):
         if user is None:
             return 'https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
-        
         if user.avatar:
             return user.avatar
-        
         return 'https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
-    
+
     return dict(avatar_url=avatar_url, current_year=datetime.utcnow().year)
+
 if __name__ == '__main__':
     app.run(debug=True)
