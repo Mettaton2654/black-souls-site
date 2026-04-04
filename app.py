@@ -248,10 +248,7 @@ class MessageForm(FlaskForm):
 
     def __init__(self, *args, **kwargs):
         super(MessageForm, self).__init__(*args, **kwargs)
-        # Заполняем список получателей (все пользователи кроме текущего)
         self.recipient.choices = [(u.id, u.username) for u in User.query.filter(User.id != current_user.id).all()]
-
-# ---------- МАРШРУТЫ ----------
 @app.route('/')
 def index():
     posts = Post.query.order_by(Post.date_posted.desc()).all()
@@ -265,15 +262,11 @@ def register():
 
     form = RegistrationForm()
     if form.validate_on_submit():
-        # Проверяем, не занят ли email
         existing_user = User.query.filter_by(email=form.email.data).first()
         if existing_user:
             flash('Email уже зарегистрирован', 'danger')
             return redirect(url_for('register'))
-
-        # Генерируем код подтверждения
         code = generate_verification_code()
-        # Сохраняем данные в сессию (пароль сразу хешируем)
         session['reg_data'] = {
             'username': form.username.data,
             'email': form.email.data,
@@ -281,8 +274,6 @@ def register():
             'code': code,
             'code_time': datetime.utcnow().isoformat()
         }
-
-        # Отправляем письмо
         try:
             send_verification_email(form.email.data, code)
             flash('Код подтверждения отправлен на ваш email.', 'info')
@@ -309,15 +300,12 @@ def verify():
         user_code = request.form.get('code', '').strip()
         stored_code = reg_data['code']
         code_time = datetime.fromisoformat(reg_data['code_time'])
-
-        # Проверка срока действия
         if datetime.utcnow() - code_time > timedelta(minutes=VERIFICATION_CODE_EXPIRE_MINUTES):
             flash('Код устарел. Запросите новый.', 'danger')
             session.pop('reg_data', None)
             return redirect(url_for('register'))
 
         if user_code == stored_code:
-            # Создаём пользователя
             user = User(
                 username=reg_data['username'],
                 email=reg_data['email'],
@@ -333,8 +321,6 @@ def verify():
         else:
             flash('Неверный код подтверждения.', 'danger')
             return redirect(url_for('verify'))
-
-    # GET — показываем форму ввода кода
     return render_template('verify.html', email=reg_data['email'])
 @app.route('/resend-code')
 def resend_code():
@@ -384,16 +370,11 @@ def profile():
     if form.validate_on_submit():
         if form.username.data != current_user.username:
             current_user.username = form.username.data
-
-        # Обработка аватара из формы
         cropped_avatar = request.form.get('cropped_avatar')
         if cropped_avatar and cropped_avatar.startswith('data:image'):
             try:
-                # Декодируем base64
                 image_data = cropped_avatar.split(',')[1]
                 image_binary = base64.b64decode(image_data)
-                
-                # Загружаем в Cloudinary
                 upload_result = cloudinary.uploader.upload(
                     image_binary,
                     folder="avatars",
@@ -401,14 +382,10 @@ def profile():
                     overwrite=True,
                     transformation=[{'width': 300, 'height': 300, 'crop': 'fill'}]
                 )
-                
-                # Сохраняем ссылку
                 current_user.avatar = upload_result['secure_url']
                 
             except Exception as e:
                 flash(f'Ошибка при загрузке аватара: {str(e)}', 'danger')
-
-        # Смена пароля
         if form.old_password.data and form.new_password.data:
             if not current_user.check_password(form.old_password.data):
                 flash('Неверный старый пароль', 'danger')
@@ -583,8 +560,6 @@ def delete_post(post_id):
     if not (current_user.is_admin or current_user.id == post.user_id):
         flash('У вас нет прав на удаление этого поста', 'danger')
         return redirect(url_for('index'))
-
-    # Удаляем все лайки этого поста
     Like.query.filter_by(post_id=post.id).delete()
 
     for att in post.attachments:
@@ -707,12 +682,10 @@ def like_post(post_id):
 @app.context_processor
 def utility_processor():
     def avatar_url(user):
-        # Максимально простой вариант
         if user is None:
             return 'https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
         
         if user.avatar:
-            # Просто возвращаем то, что в базе
             return user.avatar
         
         return 'https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
