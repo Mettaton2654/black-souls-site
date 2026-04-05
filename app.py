@@ -8,7 +8,7 @@ from sqlalchemy import text
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import FlaskForm
-from flask_wtf.csrf import CSRFProtect, csrf_exempt
+from flask_wtf.csrf import CSRFProtect
 from wtforms import StringField, PasswordField, TextAreaField, SubmitField, SelectField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, Optional
 from datetime import datetime
