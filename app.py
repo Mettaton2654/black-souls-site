@@ -312,7 +312,7 @@ def register():
     return render_template('register.html', form=form)
 
 @app.route('/verify', methods=['GET', 'POST'])
-@csrf_exempt
+@csrf.exempt
 def verify():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
