@@ -8,7 +8,7 @@ from sqlalchemy import text
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import FlaskForm
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, csrf_exempt
 from wtforms import StringField, PasswordField, TextAreaField, SubmitField, SelectField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, Optional
 from datetime import datetime
@@ -312,6 +312,7 @@ def register():
     return render_template('register.html', form=form)
 
 @app.route('/verify', methods=['GET', 'POST'])
+@csrf_exempt
 def verify():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
