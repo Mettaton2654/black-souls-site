@@ -2,7 +2,6 @@
 
 {% block content %}
 <div class="post-detail-container">
-    <!-- Кнопка назад -->
     <div class="back-navigation">
         <a href="{{ url_for('index') }}" class="back-link">← Назад к ленте</a>
     </div>
@@ -49,8 +48,6 @@
                 </div>
             </div>
         {% endif %}
-
-        <!-- Статистика поста -->
         <div class="post-stats">
             <div class="stat-item">
                 <span class="stat-label">👁 Просмотров:</span>
@@ -65,8 +62,6 @@
                 <span class="stat-value">{{ post.comments|length }}</span>
             </div>
         </div>
-
-        <!-- Кнопка лайка -->
         {% if current_user.is_authenticated %}
             <div class="like-section">
                 <button class="like-btn {% if current_user.id in post.likes|map(attribute='user_id')|list %}liked{% endif %}" 
@@ -78,12 +73,8 @@
             </div>
         {% endif %}
     </div>
-
-    <!-- Секция комментариев -->
     <div class="comments-section">
         <h3>Комментарии</h3>
-
-        <!-- Форма добавления комментария -->
         {% if current_user.is_authenticated %}
             <form method="POST" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form" id="comment-form-{{ post.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -95,11 +86,8 @@
                 <a href="{{ url_for('login') }}">Войдите</a>, чтобы оставить комментарий.
             </p>
         {% endif %}
-
-        <!-- Список комментариев -->
         <div class="comments-list" id="comments-{{ post.id }}">
             {% if post.comments|length > 3 %}
-                <!-- Показываем только последние 3 комментария, остальные свернуты -->
                 <div class="comments-preview">
                     {% for comment in post.comments[-3:] %}
                         {% include '_comment.html' %}
@@ -114,7 +102,6 @@
                     {% endfor %}
                 </div>
             {% else %}
-                <!-- Если комментариев 3 или меньше, показываем все -->
                 {% for comment in post.comments %}
                     {% include '_comment.html' %}
                 {% endfor %}
@@ -122,8 +109,6 @@
         </div>
     </div>
 </div>
-
-<!-- Всплывающее окно подтверждения удаления -->
 <div id="delete-modal" class="modal" style="display: none;">
     <div class="modal-content">
         <span class="close" onclick="closeDeleteModal()">&times;</span>

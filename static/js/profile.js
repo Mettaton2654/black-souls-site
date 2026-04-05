@@ -87,7 +87,7 @@ cropBtn.onclick = () => {
             if (cropper) cropper.destroy();
         });
     }, 'image/png');
-};  // <--- Этой скобки не хватало
+}; 
 
 window.onclick = (event) => {
     if (event.target == modal) {

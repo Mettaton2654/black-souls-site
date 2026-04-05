@@ -35,6 +35,7 @@
             <td>
                 {% if not user.is_admin %}
                     <form method="POST" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="user_id" value="{{ user.id }}">
                         {% if user.can_post %}
                             <button type="submit" name="action" value="revoke" class="btn btn-sm btn-warning">Запретить посты</button>

@@ -49,17 +49,13 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'fallback-dev-key-change-me')
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-
-# --- Настройка базы данных (Supabase / PostgreSQL) ---
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///site.db')
-# Автоматически добавляем sslmode=require для PostgreSQL, если его нет
 if database_url.startswith('postgresql'):
     if 'sslmode' not in database_url:
         database_url += '?sslmode=require'
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# --- Настройка почты ---
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True').lower() == 'true'
@@ -196,13 +192,9 @@ class Sticker(db.Model):
 
     def __repr__(self):
         return f'<Sticker {self.name}>'
-
-# --- Загрузка пользователя ---
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
-
-# --- Создание таблиц и начальных данных ---
 with app.app_context():
     db.create_all()
     print("✅ Таблицы созданы или уже существуют в Supabase.")
@@ -224,8 +216,6 @@ with app.app_context():
     except Exception as e:
         db.session.rollback()
         print(f"⚠️ Ошибка при создании стикеров: {e}")
-
-# --- Формы ---
 class RegistrationForm(FlaskForm):
     username = StringField('Имя пользователя', validators=[DataRequired(), Length(min=2, max=20)])
     email = StringField('Email', validators=[DataRequired(), Email()])
@@ -271,8 +261,6 @@ class MessageForm(FlaskForm):
     def __init__(self, *args, **kwargs):
         super(MessageForm, self).__init__(*args, **kwargs)
         self.recipient.choices = [(u.id, u.username) for u in User.query.filter(User.id != current_user.id).all()]
-
-# --- Маршруты (без изменений, кроме удалённого SQLite-специфичного кода) ---
 @app.route('/')
 def index():
     posts = Post.query.order_by(Post.date_posted.desc()).all()
@@ -699,7 +687,6 @@ def like_post(post_id):
         db.session.add(like)
         liked = True
     db.session.commit()
-    # Обновляем likes_count в модели (опционально)
     post.likes_count = len(post.likes)
     db.session.commit()
     return jsonify({'liked': liked, 'count': post.likes_count})

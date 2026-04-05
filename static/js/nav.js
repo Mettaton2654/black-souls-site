@@ -1,6 +1,3 @@
-// Navigation / mobile menu behavior
-// This script avoids inline JS so it works with CSP and keeps behavior consistent.
-
 (function () {
     const menu = document.getElementById('navMenu');
     const toggleButton = document.getElementById('mobileMenuBtn');
@@ -32,15 +29,11 @@
         event.preventDefault();
         toggleMenu();
     });
-
-    // Close menu when clicking outside (mobile)
     document.addEventListener('click', (event) => {
         if (!menu.contains(event.target) && !toggleButton.contains(event.target)) {
             closeMenu();
         }
     });
-
-    // Close menu if resizing to desktop width
     const onResize = () => {
         if (window.innerWidth > 768) {
             closeMenu();
@@ -48,7 +41,5 @@
     };
 
     window.addEventListener('resize', onResize);
-
-    // Ensure correct initial state
     onResize();
 })();

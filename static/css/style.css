@@ -30,8 +30,6 @@ body {
     position: relative;
     overflow-x: hidden;
 }
-
-/* Custom scrollbars */
 ::-webkit-scrollbar {
     width: 10px;
 }
@@ -899,8 +897,6 @@ small {
     text-transform: uppercase;
     letter-spacing: 1px;
 }
-
-/* Post detail page utilities */
 .post-detail-container {
     max-width: 900px;
     margin: 0 auto 40px;
@@ -1080,8 +1076,6 @@ small {
 .like-count {
     font-weight: bold;
 }
-
-/* Messages Styles */
 .messages-container {
     margin-top: 20px;
 }
