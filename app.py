@@ -16,6 +16,8 @@ from flask_wtf.file import FileField, FileAllowed, MultipleFileField
 from wtforms import ValidationError
 from werkzeug.utils import secure_filename
 import random
+from apscheduler.schedulers.background import BackgroundScheduler
+import openai
 import string
 from datetime import datetime, timedelta
 import io
@@ -72,7 +74,42 @@ login_manager.login_view = 'login'
 csrf = CSRFProtect(app)
 
 VERIFICATION_CODE_EXPIRE_MINUTES = 10
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
+def generate_ai_post():
+    """Генерирует текст поста через GPT и публикует от имени бота."""
+    with app.app_context():
+        try:
+            bot = User.query.filter_by(username="AI_Bot").first()
+            if not bot:
+                app.logger.error("AI_Bot не найден в БД")
+                return
+            prompt = os.environ.get("AI_PROMPT", 
+                "Напиши короткий, интересный пост (150-250 символов) для социальной сети. "
+            )
+            
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Ты креативный философ."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=150,
+                temperature=0.8
+            )
+            content = response.choices[0].message.content.strip()
+            post = Post(content=content, author=bot)
+            db.session.add(post)
+            db.session.commit()
+            app.logger.info(f"✅ AI-бот создал пост: {content[:50]}...")
+            
+        except Exception as e:
+            app.logger.error(f"❌ Ошибка генерации поста: {e}")
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=generate_ai_post, trigger="interval", hours=4, id="ai_post_job")
+scheduler.start()
+import atexit
+atexit.register(lambda: scheduler.shutdown())
 def check_smtp_connection():
     host = app.config['MAIL_SERVER']
     port = app.config['MAIL_PORT']
@@ -198,7 +235,23 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
     print("✅ Таблицы созданы или уже существуют в Supabase.")
-
+    bot_username = "AI_Bot"
+    bot_email = "ai_bot@iltp05-10corp.ru"
+    bot = User.query.filter_by(username=bot_username).first()
+    if not bot:
+        bot = User(
+            username=bot_username,
+            email=bot_email,
+            is_admin=False,
+            can_post=True,
+            avatar="https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png"
+        )
+        bot.set_password(os.urandom(24).hex())
+        db.session.add(bot)
+        db.session.commit()
+        print("✅ Пользователь AI_Bot создан")
+    else:
+        print("✅ AI_Bot уже существует")
     try:
         if Sticker.query.count() == 0:
             stickers = [
@@ -673,7 +726,15 @@ def search():
     else:
         posts = []
     return render_template('search_results.html', posts=posts, query=query)
-
+@app.route('/test-ai-post')
+@login_required
+def test_ai_post():
+    if not current_user.is_admin:
+        flash("Доступ только админу", "danger")
+        return redirect(url_for('index'))
+    generate_ai_post()
+    flash("Пост от AI сгенерирован (проверьте логи)", "info")
+    return redirect(url_for('index'))
 @app.route('/post/<int:post_id>/like', methods=['POST'])
 @login_required
 def like_post(post_id):

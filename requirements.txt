@@ -10,3 +10,5 @@ Pillow
 cloudinary
 flask-mail
 resend
+apscheduler
+openai
