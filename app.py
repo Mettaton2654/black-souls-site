@@ -91,7 +91,7 @@ def generate_ai_post():
                     {"role": "system", "content": "Ты креативный философ."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=150,
+                max_tokens=250,
                 temperature=0.8
             )
             content = response.choices[0].message.content.strip()
