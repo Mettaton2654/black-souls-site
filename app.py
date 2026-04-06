@@ -83,7 +83,7 @@ def generate_ai_post():
                 app.logger.error("AI_Bot не найден в БД")
                 return
             prompt = os.environ.get("AI_PROMPT", 
-                "Напиши короткий, интересный пост (150-250 символов) для социальной сети. "
+                "Напиши короткий, интересный пост (150-250 символов) для социальной сети. Мысль должна быть закончена за это количество времени"
             )
             response = openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
