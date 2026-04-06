@@ -145,7 +145,7 @@ class User(UserMixin, db.Model):
     can_post = db.Column(db.Boolean, default=False)
     avatar = db.Column(
         db.String(300),
-        default='https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
+        default='https://res.cloudinary.com/dssim246k/image/upload/v1775454177/default_ehpw4u.jpg'
     )
     posts = db.relationship('Post', backref='author', lazy=True)
     comments = db.relationship('Comment', backref='author', lazy=True)
@@ -240,7 +240,7 @@ with app.app_context():
             email=bot_email,
             is_admin=False,
             can_post=True,
-            avatar="https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png"
+            avatar="https://res.cloudinary.com/dssim246k/image/upload/v1772282449/default_avatar_i5bg2p.png"
         )
         bot.set_password(os.urandom(24).hex())
         db.session.add(bot)
@@ -755,10 +755,10 @@ def ping():
 def utility_processor():
     def avatar_url(user):
         if user is None:
-            return 'https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
+            return 'https://res.cloudinary.com/dssim246k/image/upload/v1775454177/default_ehpw4u.jpg'
         if user.avatar:
             return user.avatar
-        return 'https://res.cloudinary.com/dssim246k/image/upload/v1773220194/avatars/default_avatar.png'
+        return 'https://res.cloudinary.com/dssim246k/image/upload/v1775454177/default_ehpw4u.jpg'
 
     return dict(avatar_url=avatar_url, current_year=datetime.utcnow().year)
 
