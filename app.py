@@ -747,7 +747,10 @@ def like_post(post_id):
     post.likes_count = len(post.likes)
     db.session.commit()
     return jsonify({'liked': liked, 'count': post.likes_count})
-
+@app.route('/ping')
+def ping():
+    """Простой эндпоинт для keep-alive сервисов."""
+    return "OK", 200
 @app.context_processor
 def utility_processor():
     def avatar_url(user):
