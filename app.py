@@ -17,7 +17,7 @@ from wtforms import ValidationError
 from werkzeug.utils import secure_filename
 import random
 from apscheduler.schedulers.background import BackgroundScheduler
-from openai import OpenAI
+import openai
 import string
 from datetime import datetime, timedelta
 import io
