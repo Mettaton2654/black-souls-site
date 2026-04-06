@@ -77,7 +77,6 @@ VERIFICATION_CODE_EXPIRE_MINUTES = 10
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 def generate_ai_post():
-    """Генерирует текст поста через GPT и публикует от имени бота."""
     with app.app_context():
         try:
             bot = User.query.filter_by(username="AI_Bot").first()
@@ -87,8 +86,7 @@ def generate_ai_post():
             prompt = os.environ.get("AI_PROMPT", 
                 "Напиши короткий, интересный пост (150-250 символов) для социальной сети. "
             )
-            
-            response = openai.ChatCompletion.create(
+            response = openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "Ты креативный философ."},
@@ -102,7 +100,6 @@ def generate_ai_post():
             db.session.add(post)
             db.session.commit()
             app.logger.info(f"✅ AI-бот создал пост: {content[:50]}...")
-            
         except Exception as e:
             app.logger.error(f"❌ Ошибка генерации поста: {e}")
 scheduler = BackgroundScheduler()
