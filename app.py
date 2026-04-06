@@ -74,8 +74,7 @@ login_manager.login_view = 'login'
 csrf = CSRFProtect(app)
 
 VERIFICATION_CODE_EXPIRE_MINUTES = 10
-openai.api_key = os.environ.get("OPENAI_API_KEY")
-openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+openai_client = openai.OpenAI(api_key=os.environ.get("OPEN_API_KEY"))
 def generate_ai_post():
     with app.app_context():
         try:
