@@ -219,11 +219,12 @@ class Chat(db.Model):
         return self.messages.order_by(Message.timestamp.desc()).first()
 
     def unread_count(self, user_id):
-        """Количество непрочитанных сообщений для конкретного пользователя."""
-        participant_data = db.session.query(chat_participants).filter_by(
+        part = db.session.query(chat_participants).filter_by(
             chat_id=self.id, user_id=user_id
         ).first()
-        last_read = participant_data.last_read_message_id if participant_data else 0
+        last_read = part.last_read_message_id if part else 0
+        if last_read is None:
+            last_read = 0
         return self.messages.filter(Message.id > last_read).count()
 
 class Message(db.Model):
