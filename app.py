@@ -707,9 +707,10 @@ def messages():
     ).all()
 
     return render_template('messages.html',
-                           chats=user_chats,
-                           pending_chats=pending_chats,
-                           active_chat=None)
+                       chats=user_chats,
+                       pending_chats=pending_chats,
+                       active_chat=None,
+                       User=User)
 
 
 @app.route('/chat/<int:chat_id>')
@@ -759,11 +760,12 @@ def chat_view(chat_id):
     form = MessageForm(chat_id=chat_id)
 
     return render_template('messages.html',
-                           chats=user_chats,
-                           pending_chats=pending_chats,
-                           active_chat=chat,
-                           messages=messages_list,
-                           form=form)
+                       chats=user_chats,
+                       pending_chats=pending_chats,
+                       active_chat=chat,
+                       messages=messages_list,
+                       form=form,
+                       User=User)
 @app.route('/chat/<int:chat_id>/send', methods=['POST'])
 @login_required
 def send_chat_message(chat_id):
