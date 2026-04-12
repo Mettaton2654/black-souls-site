@@ -8,6 +8,7 @@
         <div class="form-group">
             <label for="username">Имя пользователя</label>
             <input type="text" name="username" id="username" class="form-control" placeholder="Введите имя пользователя" required>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         </div>
         <button type="submit" class="btn btn-primary">Отправить приглашение</button>
         <a href="{{ url_for('messages') }}" class="btn btn-secondary">Отмена</a>

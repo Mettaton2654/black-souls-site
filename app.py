@@ -745,10 +745,8 @@ def chat_view(chat_id):
         )
     ).all()
 
-    # Сообщения чата (последние 50)
     messages_list = chat.messages.order_by(Message.timestamp.desc()).limit(50).all()[::-1]
 
-    # Обновить last_read_message_id для текущего пользователя
     if messages_list:
         last_msg_id = messages_list[-1].id
         stmt = chat_participants.update().where(
