@@ -1571,6 +1571,7 @@ small {
     border-bottom: 1px solid rgba(179, 0, 0, 0.5);
     padding: 0 8px;
     background: rgba(0, 0, 0, 0.2);
+    gap: 10px;
 }
 
 .nav-tabs .nav-link {
