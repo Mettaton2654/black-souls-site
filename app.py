@@ -149,25 +149,12 @@ class User(UserMixin, db.Model):
     )
     posts = db.relationship('Post', backref='author', lazy=True)
     comments = db.relationship('Comment', backref='author', lazy=True)
-    messages_sent = db.relationship(
-        'PrivateMessage',
-        foreign_keys='PrivateMessage.sender_id',
-        back_populates='sender',
-        lazy='dynamic'
-    )
-    messages_received = db.relationship(
-        'PrivateMessage',
-        foreign_keys='PrivateMessage.recipient_id',
-        back_populates='recipient',
-        lazy='dynamic'
-    )
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
-
 class Post(db.Model):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)
@@ -725,36 +712,6 @@ def messages():
                            pending_chats=pending_chats,
                            active_chat=None)
 
-
-@app.route('/messages/send', methods=['GET', 'POST'])
-@login_required
-def send_message():
-    form = MessageForm()
-    if form.validate_on_submit():
-        message = PrivateMessage(
-            sender_id=current_user.id,
-            recipient_id=form.recipient.data,
-            content=form.content.data
-        )
-        db.session.add(message)
-        db.session.commit()
-        flash('Сообщение отправлено', 'success')
-        return redirect(url_for('messages'))
-
-    return render_template('send_message.html', form=form)
-
-@app.route('/messages/delete/<int:message_id>', methods=['POST'])
-@login_required
-def delete_message(message_id):
-    message = PrivateMessage.query.get_or_404(message_id)
-    if message.sender_id != current_user.id and message.recipient_id != current_user.id:
-        flash('У вас нет прав на удаление этого сообщения', 'danger')
-        return redirect(url_for('messages'))
-
-    db.session.delete(message)
-    db.session.commit()
-    flash('Сообщение удалено', 'success')
-    return redirect(url_for('messages'))
 
 @app.route('/chat/<int:chat_id>')
 @login_required
