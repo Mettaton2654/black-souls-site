@@ -204,17 +204,52 @@ class Like(db.Model):
     user = db.relationship('User', backref=db.backref('likes', lazy=True))
     post = db.relationship('Post', backref=db.backref('likes', lazy=True))
 
-class PrivateMessage(db.Model):
-    __tablename__ = 'private_messages'
+chat_participants = db.Table(
+    'chat_participants',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('chat_id', db.Integer, db.ForeignKey('chats.id'), primary_key=True),
+    db.Column('status', db.String(20), default='pending'),  # pending, accepted, declined
+    db.Column('last_read_message_id', db.Integer, nullable=True),
+    db.Column('joined_at', db.DateTime, default=datetime.utcnow)
+)
+
+class Chat(db.Model):
+    __tablename__ = 'chats'
     id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_group = db.Column(db.Boolean, default=False)
+    name = db.Column(db.String(100), nullable=True)
+
+    participants = db.relationship(
+        'User',
+        secondary=chat_participants,
+        lazy='dynamic',
+        backref=db.backref('chats', lazy='dynamic')
+    )
+    messages = db.relationship('Message', backref='chat', lazy='dynamic', cascade='all, delete-orphan')
+
+    def last_message(self):
+        return self.messages.order_by(Message.timestamp.desc()).first()
+
+    def unread_count(self, user_id):
+        """Количество непрочитанных сообщений для конкретного пользователя."""
+        participant_data = db.session.query(chat_participants).filter_by(
+            chat_id=self.id, user_id=user_id
+        ).first()
+        last_read = participant_data.last_read_message_id if participant_data else 0
+        return self.messages.filter(Message.id > last_read).count()
+
+class Message(db.Model):
+    __tablename__ = 'messages'
+    id = db.Column(db.Integer, primary_key=True)
+    chat_id = db.Column(db.Integer, db.ForeignKey('chats.id'), nullable=False)
     sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    recipient_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    is_read = db.Column(db.Boolean, default=False)
+    is_read = db.Column(db.Boolean, default=False)  # можно заменить на связь many-to-many, но оставим для простоты
 
-    sender = db.relationship('User', foreign_keys=[sender_id], back_populates='messages_sent')
-    recipient = db.relationship('User', foreign_keys=[recipient_id], back_populates='messages_received')
+    sender = db.relationship('User', backref='messages_sent_new')
 
 class Sticker(db.Model):
     __tablename__ = 'stickers'
@@ -303,13 +338,9 @@ class ProfileForm(FlaskForm):
                 raise ValidationError('Это имя уже занято. Выберите другое.')
 
 class MessageForm(FlaskForm):
-    recipient = SelectField('Получатель', coerce=int, validators=[DataRequired()])
-    content = TextAreaField('Сообщение', validators=[DataRequired(), Length(min=1, max=1000)])
+    chat_id = HiddenField('Chat ID', validators=[DataRequired()])
+    content = TextAreaField('Сообщение', validators=[DataRequired(), Length(max=1000)])
     submit = SubmitField('Отправить')
-
-    def __init__(self, *args, **kwargs):
-        super(MessageForm, self).__init__(*args, **kwargs)
-        self.recipient.choices = [(u.id, u.username) for u in User.query.filter(User.id != current_user.id).all()]
 @app.route('/')
 def index():
     posts = Post.query.order_by(Post.date_posted.desc()).all()
@@ -664,25 +695,36 @@ def delete_attachment(attachment_id):
 
 from sqlalchemy import or_
 
+
 @app.route('/messages')
 @login_required
 def messages():
-    messages = PrivateMessage.query.filter(
-        or_(
-            PrivateMessage.recipient_id == current_user.id,
-            PrivateMessage.sender_id == current_user.id,
+    """Главная страница чатов (левая панель со списком)."""
+    # Получаем все чаты, где текущий пользователь — участник со статусом 'accepted'
+    user_chats = current_user.chats.join(
+        chat_participants,
+        and_(
+            chat_participants.c.chat_id == Chat.id,
+            chat_participants.c.user_id == current_user.id,
+            chat_participants.c.status == 'accepted'
         )
-    ).order_by(PrivateMessage.timestamp.desc()).all()
+    ).order_by(Chat.updated_at.desc()).all()
 
-    received_messages = [m for m in messages if m.recipient_id == current_user.id]
-    sent_messages = [m for m in messages if m.sender_id == current_user.id]
+    # Также получаем приглашения (pending) для отображения в отдельной вкладке
+    pending_chats = current_user.chats.join(
+        chat_participants,
+        and_(
+            chat_participants.c.chat_id == Chat.id,
+            chat_participants.c.user_id == current_user.id,
+            chat_participants.c.status == 'pending'
+        )
+    ).all()
 
-    for msg in received_messages:
-        if not msg.is_read:
-            msg.is_read = True
-    db.session.commit()
+    return render_template('messages.html',
+                           chats=user_chats,
+                           pending_chats=pending_chats,
+                           active_chat=None)
 
-    return render_template('messages.html', received_messages=received_messages, sent_messages=sent_messages)
 
 @app.route('/messages/send', methods=['GET', 'POST'])
 @login_required
@@ -714,6 +756,209 @@ def delete_message(message_id):
     flash('Сообщение удалено', 'success')
     return redirect(url_for('messages'))
 
+@app.route('/chat/<int:chat_id>')
+@login_required
+def chat_view(chat_id):
+    """Просмотр переписки в конкретном чате."""
+    chat = Chat.query.get_or_404(chat_id)
+
+    # Проверка доступа
+    participant = db.session.query(chat_participants).filter_by(
+        chat_id=chat_id, user_id=current_user.id, status='accepted'
+    ).first()
+    if not participant:
+        flash('У вас нет доступа к этому чату.', 'danger')
+        return redirect(url_for('messages'))
+
+    # Все активные чаты пользователя (для левой панели)
+    user_chats = current_user.chats.join(
+        chat_participants,
+        and_(
+            chat_participants.c.chat_id == Chat.id,
+            chat_participants.c.user_id == current_user.id,
+            chat_participants.c.status == 'accepted'
+        )
+    ).order_by(Chat.updated_at.desc()).all()
+
+    pending_chats = current_user.chats.join(
+        chat_participants,
+        and_(
+            chat_participants.c.chat_id == Chat.id,
+            chat_participants.c.user_id == current_user.id,
+            chat_participants.c.status == 'pending'
+        )
+    ).all()
+
+    # Сообщения чата (последние 50)
+    messages_list = chat.messages.order_by(Message.timestamp.desc()).limit(50).all()[::-1]
+
+    # Обновить last_read_message_id для текущего пользователя
+    if messages_list:
+        last_msg_id = messages_list[-1].id
+        stmt = chat_participants.update().where(
+            chat_participants.c.chat_id == chat_id,
+            chat_participants.c.user_id == current_user.id
+        ).values(last_read_message_id=last_msg_id)
+        db.session.execute(stmt)
+        db.session.commit()
+
+    form = MessageForm(chat_id=chat_id)
+
+    return render_template('messages.html',
+                           chats=user_chats,
+                           pending_chats=pending_chats,
+                           active_chat=chat,
+                           messages=messages_list,
+                           form=form)
+@app.route('/chat/<int:chat_id>/send', methods=['POST'])
+@login_required
+def send_chat_message(chat_id):
+    """Отправка сообщения в чат (поддерживает AJAX)."""
+    chat = Chat.query.get_or_404(chat_id)
+    participant = db.session.query(chat_participants).filter_by(
+        chat_id=chat_id, user_id=current_user.id, status='accepted'
+    ).first()
+    if not participant:
+        return jsonify({'error': 'Access denied'}), 403
+
+    content = request.form.get('content', '').strip()
+    if not content:
+        flash('Сообщение не может быть пустым.', 'warning')
+        return redirect(url_for('chat_view', chat_id=chat_id))
+
+    msg = Message(chat_id=chat_id, sender_id=current_user.id, content=content)
+    db.session.add(msg)
+    chat.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'id': msg.id,
+            'content': msg.content,
+            'timestamp': msg.timestamp.strftime('%d.%m.%Y %H:%M'),
+            'sender': {
+                'id': current_user.id,
+                'username': current_user.username
+            }
+        })
+    else:
+        flash('Сообщение отправлено.', 'success')
+        return redirect(url_for('chat_view', chat_id=chat_id))
+
+@app.route('/chat/create', methods=['GET', 'POST'])
+@login_required
+def create_chat():
+    """Создание нового чата (отправка приглашения)."""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            flash('Пользователь не найден.', 'danger')
+            return redirect(url_for('create_chat'))
+        if user.id == current_user.id:
+            flash('Нельзя создать чат с самим собой.', 'warning')
+            return redirect(url_for('create_chat'))
+
+        # Проверяем существующий чат с этим пользователем
+        existing_chat = None
+        for chat in current_user.chats:
+            other = chat.participants.filter(User.id != current_user.id).first()
+            if other and other.id == user.id:
+                existing_chat = chat
+                break
+
+        if existing_chat:
+            # Проверяем статус приглашения
+            participant = db.session.query(chat_participants).filter_by(
+                chat_id=existing_chat.id, user_id=current_user.id
+            ).first()
+            if participant and participant.status == 'pending':
+                flash('Приглашение уже отправлено и ожидает ответа.', 'info')
+            elif participant and participant.status == 'declined':
+                # Повторно отправляем приглашение
+                stmt = chat_participants.update().where(
+                    chat_participants.c.chat_id == existing_chat.id,
+                    chat_participants.c.user_id == user.id
+                ).values(status='pending')
+                db.session.execute(stmt)
+                db.session.commit()
+                flash('Приглашение отправлено повторно.', 'success')
+            else:
+                flash('Чат с этим пользователем уже существует.', 'info')
+            return redirect(url_for('messages'))
+
+        # Создаём новый чат
+        chat = Chat()
+        db.session.add(chat)
+        db.session.flush()
+
+        # Текущий пользователь — принят автоматически
+        ins1 = chat_participants.insert().values(
+            user_id=current_user.id, chat_id=chat.id, status='accepted'
+        )
+        db.session.execute(ins1)
+        # Приглашаемый пользователь — в ожидании
+        ins2 = chat_participants.insert().values(
+            user_id=user.id, chat_id=chat.id, status='pending'
+        )
+        db.session.execute(ins2)
+        db.session.commit()
+
+        flash(f'Приглашение отправлено пользователю {user.username}.', 'success')
+        return redirect(url_for('messages'))
+
+    return render_template('create_chat.html')
+
+@app.route('/chat/<int:chat_id>/invite_response', methods=['POST'])
+@login_required
+def invite_response(chat_id):
+    """Принять или отклонить приглашение в чат."""
+    action = request.form.get('action')
+    if action not in ['accept', 'decline']:
+        return jsonify({'error': 'Invalid action'}), 400
+
+    chat = Chat.query.get_or_404(chat_id)
+    participant = db.session.query(chat_participants).filter_by(
+        chat_id=chat_id, user_id=current_user.id, status='pending'
+    ).first()
+    if not participant:
+        flash('Нет активного приглашения.', 'warning')
+        return redirect(url_for('messages'))
+
+    if action == 'accept':
+        stmt = chat_participants.update().where(
+            chat_participants.c.chat_id == chat_id,
+            chat_participants.c.user_id == current_user.id
+        ).values(status='accepted')
+        db.session.execute(stmt)
+        db.session.commit()
+        flash('Вы присоединились к чату.', 'success')
+        return redirect(url_for('chat_view', chat_id=chat_id))
+    else:
+        stmt = chat_participants.delete().where(
+            chat_participants.c.chat_id == chat_id,
+            chat_participants.c.user_id == current_user.id
+        )
+        db.session.execute(stmt)
+        db.session.commit()
+        flash('Приглашение отклонено.', 'info')
+        return redirect(url_for('messages'))
+
+@app.route('/chat/<int:chat_id>/message/<int:msg_id>/delete', methods=['POST'])
+@login_required
+def delete_chat_message(chat_id, msg_id):
+    """Удаление сообщения (только для отправителя)."""
+    msg = Message.query.get_or_404(msg_id)
+    if msg.chat_id != chat_id:
+        abort(404)
+    if msg.sender_id != current_user.id:
+        flash('Вы можете удалять только свои сообщения.', 'danger')
+        return redirect(url_for('chat_view', chat_id=chat_id))
+
+    db.session.delete(msg)
+    db.session.commit()
+    flash('Сообщение удалено.', 'success')
+    return redirect(url_for('chat_view', chat_id=chat_id))
 @app.route('/search')
 def search():
     query = request.args.get('q', '')

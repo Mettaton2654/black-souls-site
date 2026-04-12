@@ -1,53 +1,172 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1 class="page-title">Личные сообщения</h1>
+<div class="chat-app-container">
+    <!-- Левая панель -->
+    <div class="chat-sidebar">
+        <div class="sidebar-header">
+            <h3>Сообщения</h3>
+            <a href="{{ url_for('create_chat') }}" class="btn btn-sm btn-primary">+ Новый чат</a>
+        </div>
 
-<div class="messages-container">
-    <div class="messages-actions">
-        <a href="{{ url_for('send_message') }}" class="btn">Написать сообщение</a>
+        <!-- Вкладки -->
+        <ul class="nav nav-tabs" id="chatTabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="active-tab" data-toggle="tab" href="#activeChats" role="tab">Чаты</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" id="invites-tab" data-toggle="tab" href="#pendingInvites" role="tab">
+                    Приглашения
+                    <span class="badge badge-danger">{{ pending_chats|length }}</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Активные чаты -->
+            <div class="tab-pane fade show active" id="activeChats" role="tabpanel">
+                <div class="chat-list">
+                    {% for chat in chats %}
+                        {% set other_user = chat.participants.filter(User.id != current_user.id).first() %}
+                        <a href="{{ url_for('chat_view', chat_id=chat.id) }}" 
+                           class="chat-item {% if active_chat and active_chat.id == chat.id %}active{% endif %}">
+                            <div class="chat-avatar">
+                                <img src="{{ avatar_url(other_user) }}" alt="avatar">
+                            </div>
+                            <div class="chat-info">
+                                <div class="chat-name">{{ other_user.username }}</div>
+                                <div class="chat-last-message">
+                                    {% set last_msg = chat.last_message() %}
+                                    {% if last_msg %}
+                                        {{ last_msg.sender.username }}: {{ last_msg.content|truncate(30) }}
+                                    {% else %}
+                                        Нет сообщений
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% set unread = chat.unread_count(current_user.id) %}
+                            {% if unread > 0 %}
+                                <span class="badge badge-primary unread-badge">{{ unread }}</span>
+                            {% endif %}
+                        </a>
+                    {% else %}
+                        <div class="no-chats">У вас пока нет чатов.</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Приглашения -->
+            <div class="tab-pane fade" id="pendingInvites" role="tabpanel">
+                <div class="invite-list">
+                    {% for chat in pending_chats %}
+                        {% set inviter = chat.participants.filter(User.id != current_user.id).first() %}
+                        <div class="invite-item">
+                            <div class="invite-info">
+                                <img src="{{ avatar_url(inviter) }}" class="invite-avatar" width="32">
+                                <strong>{{ inviter.username }}</strong> хочет начать чат
+                            </div>
+                            <div class="invite-actions">
+                                <form method="POST" action="{{ url_for('invite_response', chat_id=chat.id) }}" class="d-inline">
+                                    <input type="hidden" name="action" value="accept">
+                                    <button type="submit" class="btn btn-sm btn-success">✓</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('invite_response', chat_id=chat.id) }}" class="d-inline">
+                                    <input type="hidden" name="action" value="decline">
+                                    <button type="submit" class="btn btn-sm btn-danger">✗</button>
+                                </form>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="no-invites">Нет новых приглашений.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="messages-grid">
-        <div class="messages-section">
-            <h2>Входящие сообщения</h2>
-            {% if received_messages %}
-                {% for message in received_messages %}
-                    <div class="message-card {% if not message.is_read %}unread{% endif %}">
-                        <div class="message-header">
-                            <span class="message-sender">От: {{ message.sender.username }}</span>
-                            <span class="message-time">{{ message.timestamp.strftime('%d.%m.%Y %H:%M') }}</span>
-                            <form method="POST" action="{{ url_for('delete_message', message_id=message.id) }}" style="display:inline;">
-                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить сообщение?')">Удалить</button>
-                            </form>
-                        </div>
-                        <div class="message-content">{{ message.content }}</div>
-                    </div>
-                {% endfor %}
-            {% else %}
-                <p>У вас нет входящих сообщений.</p>
-            {% endif %}
-        </div>
+    <!-- Правая панель -->
+    <div class="chat-main">
+        {% if active_chat %}
+            {% set other_user = active_chat.participants.filter(User.id != current_user.id).first() %}
+            <div class="chat-header">
+                <div class="chat-header-info">
+                    <img src="{{ avatar_url(other_user) }}" alt="avatar" class="header-avatar">
+                    <h4>{{ other_user.username }}</h4>
+                </div>
+            </div>
 
-        <div class="messages-section">
-            <h2>Исходящие сообщения</h2>
-            {% if sent_messages %}
-                {% for message in sent_messages %}
-                    <div class="message-card">
-                        <div class="message-header">
-                            <span class="message-recipient">Кому: {{ message.recipient.username }}</span>
-                            <span class="message-time">{{ message.timestamp.strftime('%d.%m.%Y %H:%M') }}</span>
-                            <form method="POST" action="{{ url_for('delete_message', message_id=message.id) }}" style="display:inline;">
-                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить сообщение?')">Удалить</button>
-                            </form>
+            <div class="chat-messages" id="messageContainer">
+                {% for msg in messages %}
+                    <div class="message {% if msg.sender_id == current_user.id %}message-out{% else %}message-in{% endif %}">
+                        <div class="message-content">{{ msg.content }}</div>
+                        <div class="message-meta">
+                            <span class="message-time">{{ msg.timestamp.strftime('%H:%M') }}</span>
+                            {% if msg.sender_id == current_user.id %}
+                                <form method="POST" action="{{ url_for('delete_chat_message', chat_id=active_chat.id, msg_id=msg.id) }}" class="delete-message-form">
+                                    <button type="submit" class="btn-icon" title="Удалить"><i class="fas fa-trash-alt"></i></button>
+                                </form>
+                            {% endif %}
                         </div>
-                        <div class="message-content">{{ message.content }}</div>
                     </div>
                 {% endfor %}
-            {% else %}
-                <p>Вы не отправляли сообщений.</p>
-            {% endif %}
-        </div>
+            </div>
+
+            <div class="chat-input">
+                <form method="POST" action="{{ url_for('send_chat_message', chat_id=active_chat.id) }}" id="messageForm">
+                    {{ form.hidden_tag() }}
+                    {{ form.chat_id(value=active_chat.id) }}
+                    <div class="input-group">
+                        {{ form.content(class="form-control", placeholder="Напишите сообщение...", rows=1, id="messageInput") }}
+                        <div class="input-group-append">
+                            {{ form.submit(class="btn btn-primary") }}
+                        </div>
+                    </div>
+                </form>
+            </div>
+        {% else %}
+            <div class="chat-placeholder">
+                <div class="placeholder-content">
+                    <i class="fas fa-comments fa-4x"></i>
+                    <h4>Выберите чат или начните новый</h4>
+                    <a href="{{ url_for('create_chat') }}" class="btn btn-primary">Написать сообщение</a>
+                </div>
+            </div>
+        {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    // Прокрутка вниз при загрузке
+    window.onload = function() {
+        var container = document.getElementById('messageContainer');
+        if (container) container.scrollTop = container.scrollHeight;
+    };
+
+    // AJAX отправка (опционально)
+    $('#messageForm').on('submit', function(e) {
+        e.preventDefault();
+        var form = $(this);
+        $.ajax({
+            type: 'POST',
+            url: form.attr('action'),
+            data: form.serialize(),
+            success: function(response) {
+                var msgHtml = `
+                    <div class="message message-out">
+                        <div class="message-content">${response.content}</div>
+                        <div class="message-meta">
+                            <span class="message-time">${response.timestamp.slice(-5)}</span>
+                        </div>
+                    </div>
+                `;
+                $('#messageContainer').append(msgHtml);
+                $('#messageInput').val('');
+                $('#messageContainer').scrollTop($('#messageContainer')[0].scrollHeight);
+            }
+        });
+    });
+</script>
 {% endblock %}

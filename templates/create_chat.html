@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Новый чат</h2>
+    <form method="POST">
+        {{ csrf_token() }}
+        <div class="form-group">
+            <label for="username">Имя пользователя</label>
+            <input type="text" name="username" id="username" class="form-control" placeholder="Введите имя пользователя" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Отправить приглашение</button>
+        <a href="{{ url_for('messages') }}" class="btn btn-secondary">Отмена</a>
+    </form>
+</div>
+{% endblock %}
