@@ -13,7 +13,7 @@ from wtforms import StringField, PasswordField, TextAreaField, SubmitField, Sele
 from wtforms.validators import DataRequired, Length, Email, EqualTo, Optional
 from datetime import datetime
 from flask_wtf.file import FileField, FileAllowed, MultipleFileField
-from wtforms import ValidationError
+from wtforms import ValidationError, HiddenField
 from werkzeug.utils import secure_filename
 import random
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -24,7 +24,6 @@ import io
 from PIL import Image
 import base64
 import resend
-
 try:
     import cloudinary
     import cloudinary.uploader
