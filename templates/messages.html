@@ -99,7 +99,7 @@
                     <div class="message {% if msg.sender_id == current_user.id %}message-out{% else %}message-in{% endif %}">
                         <div class="message-content">{{ msg.content }}</div>
                         <div class="message-meta">
-                            <span class="message-time">{{ msg.timestamp.strftime('%H:%M') }}</span>
+                            <span class="message-time" data-utc="{{ msg.timestamp.isoformat() }}">{{ msg.timestamp.strftime('%H:%M') }}</span>
                             {% if msg.sender_id == current_user.id %}
                                 <form method="POST" action="{{ url_for('delete_chat_message', chat_id=active_chat.id, msg_id=msg.id) }}" class="delete-message-form">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -139,60 +139,60 @@
 {% block scripts %}
 {{ super() }}
 <script>
+    document.addEventListener('DOMContentLoaded', function() {
     // Переключение вкладок
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const panes = document.querySelectorAll('.tab-pane');
+    
+    console.log('Tabs found:', tabButtons.length, 'Panes found:', panes.length);
+    
+    tabButtons.forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
             const tabId = this.dataset.tab;
+            console.log('Switching to', tabId);
             
-            // Убираем active со всех кнопок и панелей
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            tabButtons.forEach(b => b.classList.remove('active'));
+            panes.forEach(p => p.classList.remove('active'));
             
-            // Активируем текущие
             this.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
+            const targetPane = document.getElementById(tabId);
+            if (targetPane) {
+                targetPane.classList.add('active');
+            } else {
+                console.error('Pane not found:', tabId);
+            }
         });
     });
 
-    // Прокрутка вниз при загрузке
-    window.onload = function() {
-        var container = document.getElementById('messageContainer');
-        if (container) container.scrollTop = container.scrollHeight;
-    };
+    // Прокрутка сообщений
+    const msgContainer = document.getElementById('messageContainer');
+    if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
 
-    // AJAX отправка сообщения
-    const messageForm = document.getElementById('messageForm');
-    if (messageForm) {
-        messageForm.addEventListener('submit', function(e) {
+    // AJAX отправка
+    const msgForm = document.getElementById('messageForm');
+    if (msgForm) {
+        msgForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            const form = this;
-            const formData = new FormData(form);
-            
-            fetch(form.action, {
+            const formData = new FormData(this);
+            fetch(this.action, {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
+                headers: {'X-Requested-With': 'XMLHttpRequest'}
             })
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
-                const msgHtml = `
-                    <div class="message message-out">
-                        <div class="message-content">${data.content}</div>
-                        <div class="message-meta">
-                            <span class="message-time">${data.timestamp.slice(-5)}</span>
-                        </div>
-                    </div>
-                `;
-                document.getElementById('messageContainer').insertAdjacentHTML('beforeend', msgHtml);
+                const html = `<div class="message message-out">
+                    <div class="message-content">${data.content}</div>
+                    <div class="message-meta"><span class="message-time">${data.timestamp.slice(-5)}</span></div>
+                </div>`;
+                msgContainer.insertAdjacentHTML('beforeend', html);
                 document.getElementById('messageInput').value = '';
-                const container = document.getElementById('messageContainer');
-                container.scrollTop = container.scrollHeight;
+                msgContainer.scrollTop = msgContainer.scrollHeight;
             })
-            .catch(err => console.error('Ошибка:', err));
+            .catch(err => console.error('Error:', err));
         });
     }
+});
 </script>
 {% endblock %}

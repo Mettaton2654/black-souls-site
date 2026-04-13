@@ -14,7 +14,7 @@
                     <img src="{{ avatar_url(post.author) }}" alt="avatar" class="avatar" onerror="this.src='https://res.cloudinary.com/dssim246k/image/upload/v123456/default_avatar_i5bg2p.png'">
                 </a>
                 <a href="{{ url_for('user_profile', user_id=post.author.id) }}" class="username">{{ post.author.username }}</a>
-                <span class="post-date">{{ post.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
+                <span class="post-date" data-utc="{{ post.date_posted.isoformat() }}">{{ post.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
                 {% if current_user.is_authenticated and (current_user.is_admin or current_user.id == post.user_id) %}
                     <div class="post-actions">
                         <a href="{{ url_for('edit_post', post_id=post.id) }}" class="btn btn-sm">Редактировать</a>
@@ -69,7 +69,7 @@
                                 <img src="{{ avatar_url(comment.author) }}" alt="avatar" class="comment-avatar" onerror="this.src='https://via.placeholder.com/30/1a1a1a/b30000?text=?'">
                             </a>
                             <a href="{{ url_for('user_profile', user_id=comment.author.id) }}" class="comment-author">{{ comment.author.username }}</a>
-                            <span class="comment-date">{{ comment.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
+                            <span class="comment-date" data-utc="{{ comment.date_posted.isoformat() }}">{{ comment.date_posted.strftime('%d.%m.%Y %H:%M') }}</span>
                         </div>
                         <div class="comment-content">{{ comment.content }}</div>
                     </div>
