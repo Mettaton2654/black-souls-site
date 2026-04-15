@@ -2,14 +2,11 @@
 
 {% block content %}
 <div class="chat-app-container">
-    <!-- Левая панель -->
     <div class="chat-sidebar">
         <div class="sidebar-header">
             <h3>Сообщения</h3>
             <a href="{{ url_for('create_chat') }}" class="btn btn-sm btn-primary">+ Новый чат</a>
         </div>
-
-        <!-- Простые вкладки -->
         <div class="chat-tabs">
             <button class="tab-btn active" data-tab="activeChats">Чаты</button>
             <button class="tab-btn" data-tab="pendingInvites">
@@ -17,10 +14,7 @@
                 {% if pending_chats %}<span class="badge">{{ pending_chats|length }}</span>{% endif %}
             </button>
         </div>
-
-        <!-- Панели -->
         <div class="tab-panes">
-            <!-- Активные чаты -->
             <div class="tab-pane active" id="activeChats">
                 <div class="chat-list">
                     {% for chat in chats %}
@@ -51,8 +45,6 @@
                     {% endfor %}
                 </div>
             </div>
-
-            <!-- Приглашения -->
             <div class="tab-pane" id="pendingInvites">
                 <div class="invite-list">
                     {% for chat in pending_chats %}
@@ -82,8 +74,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Правая панель -->
     <div class="chat-main">
         {% if active_chat %}
             {% set other_user = active_chat.participants.filter(User.id != current_user.id).first() %}
@@ -140,7 +130,6 @@
 {{ super() }}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-    // Переключение вкладок
     const tabButtons = document.querySelectorAll('.tab-btn');
     const panes = document.querySelectorAll('.tab-pane');
     
@@ -164,12 +153,8 @@
             }
         });
     });
-
-    // Прокрутка сообщений
     const msgContainer = document.getElementById('messageContainer');
     if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
-
-    // AJAX отправка
     const msgForm = document.getElementById('messageForm');
     if (msgForm) {
         msgForm.addEventListener('submit', function(e) {

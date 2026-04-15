@@ -330,9 +330,19 @@ class MessageForm(FlaskForm):
     submit = SubmitField('Отправить')
 @app.route('/')
 def index():
-    posts = Post.query.order_by(Post.date_posted.desc()).all()
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    posts_pagination = Post.query.order_by(Post.date_posted.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    posts = posts_pagination.items
     stickers = Sticker.query.all()
-    return render_template('index.html', posts=posts, stickers=stickers)
+    return render_template(
+        'index.html',
+        posts=posts,
+        stickers=stickers,
+        pagination=posts_pagination
+    )
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():

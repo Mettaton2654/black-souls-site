@@ -1523,7 +1523,6 @@ small {
 .placeholder-content i {
     margin-bottom: 15px;
 }
-/* ===== ЧАТЫ В СТИЛЕ TELEGRAM (КРОВАВО-КИБЕРПАНК) ===== */
 
 .chat-app-container {
     display: flex;
@@ -1538,7 +1537,6 @@ small {
     margin: 20px 0;
 }
 
-/* Левая панель */
 .chat-sidebar {
     width: 340px;
     background: rgba(10, 10, 10, 0.7);
@@ -1566,7 +1564,6 @@ small {
     text-shadow: 0 0 8px rgba(179, 0, 0, 0.6);
 }
 
-/* Вкладки */
 .nav-tabs {
     border-bottom: 1px solid rgba(179, 0, 0, 0.5);
     padding: 0 8px;
@@ -1611,7 +1608,6 @@ small {
     box-shadow: 0 0 8px var(--accent);
 }
 
-/* Список чатов */
 .chat-list {
     flex: 1;
     overflow-y: auto;
@@ -1706,7 +1702,6 @@ small {
     50% { box-shadow: 0 0 15px var(--accent-2); }
 }
 
-/* Приглашения */
 .invite-list {
     padding: 12px;
 }
@@ -1825,7 +1820,6 @@ small {
     margin: 0;
 }
 
-/* Область сообщений */
 .chat-messages {
     flex: 1;
     overflow-y: auto;
@@ -2009,7 +2003,6 @@ small {
     margin-top: 10px;
 }
 
-/* Адаптивность */
 @media (max-width: 768px) {
     .chat-app-container {
         flex-direction: column;
@@ -2040,7 +2033,6 @@ small {
     }
 }
 
-/* Скроллбар внутри чата (переопределяем для кастомизации) */
 .chat-messages::-webkit-scrollbar,
 .chat-list::-webkit-scrollbar {
     width: 6px;
@@ -2110,4 +2102,31 @@ small {
 }
 .tab-pane.active {
     display: block;
+}
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin: 30px 0 20px;
+}
+
+.pagination .btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+    box-shadow: none;
+}
+
+.pagination .btn.disabled:hover {
+    transform: none;
+    background: linear-gradient(135deg, rgba(179, 0, 0, 0.95), rgba(255, 77, 77, 0.9));
+    box-shadow: 0 12px 30px rgba(179, 0, 0, 0.25);
+}
+
+.page-info {
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 1.1rem;
+    text-shadow: 0 0 5px rgba(179, 0, 0, 0.5);
 }
