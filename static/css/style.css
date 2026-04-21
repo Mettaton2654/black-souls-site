@@ -2098,10 +2098,14 @@ small {
 }
 
 .tab-pane {
-    display: none;
+    display: none !important;
 }
 .tab-pane.active {
-    display: block;
+    display: block !important;
+}
+.tab-btn {
+    position: relative;
+    z-index: 10;
 }
 .pagination {
     display: flex;

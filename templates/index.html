@@ -103,14 +103,18 @@
     {% else %}
         <span class="btn btn-sm disabled">&laquo; Назад</span>
     {% endif %}
-
     <span class="page-info">Страница {{ pagination.page }} из {{ pagination.pages }}</span>
-
     {% if pagination.has_next %}
         <a href="{{ url_for('index', page=pagination.next_num) }}" class="btn btn-sm">Вперёд &raquo;</a>
     {% else %}
         <span class="btn btn-sm disabled">Вперёд &raquo;</span>
     {% endif %}
+    <form method="GET" action="{{ url_for('index') }}" class="page-jump-form">
+        <input type="number" name="page" min="1" max="{{ pagination.pages }}" placeholder="{{ pagination.page }}" class="page-input">
+        <button type="submit" class="btn btn-sm">Перейти</button>
+    </form>
+</div>
+{% endif %}
 </div>
 {% endif %}
 {% endblock %}
